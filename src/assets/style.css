@@ -1,0 +1,92 @@
+:root {
+  --ink: #16302b;
+  --green: #136f63;
+  --cream: #f5f2e9;
+}
+
+body {
+  background: linear-gradient(180deg, #f7faf8 0%, #f2f0e9 100%);
+  color: var(--ink);
+}
+
+.mantine-AppShell-header {
+  background: rgba(255, 255, 255, .94);
+  border-bottom: 1px solid #e2e8e5;
+}
+
+.brand-mark {
+  align-items: center;
+  background: var(--green);
+  border-radius: 12px;
+  color: white;
+  display: flex;
+  font-size: 1.15rem;
+  font-weight: 800;
+  height: 44px;
+  justify-content: center;
+  letter-spacing: -.05em;
+  width: 44px;
+}
+
+.brand-overline, .eyebrow {
+  color: var(--green);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.brand-title {
+  font-size: 1.15rem;
+  font-weight: 750;
+  line-height: 1.05;
+}
+
+.page-wrap {
+  max-width: 1500px;
+}
+
+.config-card {
+  position: sticky;
+  top: 96px;
+}
+
+.metric-value {
+  color: var(--ink);
+  font-size: 1.65rem;
+  font-weight: 750;
+  letter-spacing: -.04em;
+}
+
+.metric-card {
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+
+.metric-card-success {
+  background: #e8f6ef;
+  box-shadow: inset 5px 0 0 #198754, 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
+}
+
+.metric-card-danger {
+  background: #fcebec;
+  box-shadow: inset 5px 0 0 #dc3545, 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
+}
+
+.mode-options .form-check {
+  background: #f3f6f5;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  margin-right: .6rem;
+  padding: .65rem 1rem .65rem 2.2rem;
+}
+
+.rc-slider-track {
+  background-color: var(--green);
+}
+
+.rc-slider-handle {
+  border-color: var(--green);
+}
+
+@media (max-width: 991px) {
+  .config-card { position: static; }
+}
