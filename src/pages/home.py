@@ -103,18 +103,26 @@ def metric_card(
     icon: str,
     color: str = "primary",
     card_id: str | None = None,
+    subtitle_id: str | None = None,
 ):
     card_props = {"id": card_id} if card_id else {}
-    return dbc.Card(
-        dbc.CardBody(
-            [
-                html.Div(
-                    [DashIconify(icon=icon, width=22), html.Span(title)],
-                    className=f"d-flex gap-2 align-items-center text-{color}",
-                ),
-                html.Div("—", id=value_id, className="metric-value mt-2"),
-            ]
+    content = [
+        html.Div(
+            [DashIconify(icon=icon, width=22), html.Span(title)],
+            className=f"d-flex gap-2 align-items-center text-{color}",
         ),
+        html.Div("—", id=value_id, className="metric-value mt-2"),
+    ]
+    if subtitle_id:
+        content.append(
+            html.Small(
+                "—",
+                id=subtitle_id,
+                className="d-block text-muted metric-detail mt-1",
+            )
+        )
+    return dbc.Card(
+        dbc.CardBody(content),
         className="h-100 shadow-sm border-0 metric-card",
         **card_props,
     )
@@ -231,7 +239,7 @@ layout = dbc.Container(
                                 slider_block(
                                     "Prêmio de risco",
                                     "premio-risco",
-                                    2.0,
+                                    0.0,
                                     maximum=15,
                                     minimum=-5,
                                 ),
@@ -303,6 +311,7 @@ layout = dbc.Container(
                                         "Dividend yield 12m",
                                         "dividend-yield",
                                         "solar:chart-2-linear",
+                                        subtitle_id="dividend-yield-detalhe",
                                     ),
                                     md=6,
                                 ),
@@ -312,6 +321,7 @@ layout = dbc.Container(
                                         "taxa-liquida-alternativa",
                                         "solar:hand-money-linear",
                                         "warning",
+                                        subtitle_id="taxa-liquida-detalhe",
                                     ),
                                     md=6,
                                 ),
@@ -410,7 +420,9 @@ def atualizar_links_externos(symbol):
     Output("card-cotacao", "className"),
     Output("preco-teto", "children"),
     Output("dividend-yield", "children"),
+    Output("dividend-yield-detalhe", "children"),
     Output("taxa-liquida-alternativa", "children"),
+    Output("taxa-liquida-detalhe", "children"),
     Output("lucro-fii", "children"),
     Output("lucro-referencia", "children"),
     Output("grafico-comparacao", "figure"),
@@ -487,7 +499,15 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             ),
             brl(preco_teto),
             pct(dy),
+            (
+                f"(1 + {pct(dy)} / 12)¹² - 1 = {pct(retorno_fii)} "
+                f"→ valor final {brl(finais[0])}"
+            ),
             pct(taxa_alvo_liquida),
+            (
+                f"({modo.upper()} {pct(indice)} + prêmio {pct(premio)}) "
+                f"× (1 - IR 20%) = {pct(taxa_alvo_liquida)}"
+            ),
             brl(lucros[0]),
             brl(lucros[1]),
             fig,
@@ -505,7 +525,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         )
         return (
             "", "—", "h-100 shadow-sm border-0 metric-card", "—", "—",
-            "—", "—", "—", empty, "", "light",
+            "—", "—", "—", "—", "—", empty, "", "light",
             f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",
             True,
         )

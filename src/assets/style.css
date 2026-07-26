@@ -71,6 +71,11 @@ body {
   box-shadow: inset 5px 0 0 #dc3545, 0 .125rem .25rem rgba(0, 0, 0, .075) !important;
 }
 
+.metric-detail {
+  line-height: 1.35;
+  min-height: 2.1em;
+}
+
 .mode-options .form-check {
   background: #f3f6f5;
   border: 1px solid #dce5e1;
