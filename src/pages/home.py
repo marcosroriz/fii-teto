@@ -17,6 +17,7 @@ import requests
 import yfinance as yf
 
 from fii_tickers import FII_TICKERS
+from calculos import calcular_rendimentos_fii
 
 
 # O Yahoo Finance não oferece um endpoint de listagem completa da B3. A lista
@@ -109,11 +110,12 @@ def metric_card(
     color: str = "primary",
     card_id: str | None = None,
     subtitle_id: str | None = None,
+    title_id: str | None = None,
 ):
     card_props = {"id": card_id} if card_id else {}
     content = [
         html.Div(
-            [DashIconify(icon=icon, width=22), html.Span(title)],
+            [DashIconify(icon=icon, width=22), html.Span(title, id=title_id)],
             className=f"d-flex gap-2 align-items-center text-{color}",
         ),
         html.Div("—", id=value_id, className="metric-value mt-2"),
@@ -344,6 +346,7 @@ layout = dbc.Container(
                                         "solar:scale-linear",
                                         "success",
                                         subtitle_id="selic-equivalente-fii-detalhe",
+                                        title_id="titulo-equivalente-fii",
                                     ),
                                     md=6,
                                 ),
@@ -455,6 +458,7 @@ def atualizar_links_externos(symbol):
     Output("dividend-yield-detalhe", "children"),
     Output("taxa-liquida-alternativa", "children"),
     Output("taxa-liquida-detalhe", "children"),
+    Output("titulo-equivalente-fii", "children"),
     Output("selic-equivalente-fii", "children"),
     Output("selic-equivalente-fii-detalhe", "children"),
     Output("selic-bruta-usada", "children"),
@@ -496,20 +500,27 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
 
         preco = fii["preco"]
         proventos = fii["proventos_12m"]
-        dy_decimal = proventos / preco
-        dy = dy_decimal * 100
-        dy_mensal = dy_decimal / 12
+        rendimentos_fii = calcular_rendimentos_fii(preco, proventos, ALIQUOTA_IR)
+        dy = rendimentos_fii["dy"]
+        dy_mensal = rendimentos_fii["dy_mensal_decimal"]
 
         # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
-        retorno_fii = ((1 + dy_mensal) ** 12 - 1) * 100
+        retorno_fii = rendimentos_fii["retorno_fii"]
         taxa_alvo_mensal = (1 + taxa_alvo_fii / 100) ** (1 / 12) - 1
         preco_teto = proventos / (12 * taxa_alvo_mensal)
 
         # Gross-up do DY mensal e anualização da taxa bruta equivalente.
-        selic_mensal_equivalente_decimal = dy_mensal / fator_liquido_ir
-        selic_equivalente_fii = (
-            (1 + selic_mensal_equivalente_decimal) ** 12 - 1
-        ) * 100
+        taxa_mensal_bruta_equivalente = rendimentos_fii[
+            "taxa_mensal_bruta_equivalente"
+        ]
+        taxa_bruta_equivalente_fii = rendimentos_fii[
+            "taxa_bruta_equivalente_fii"
+        ]
+        titulo_equivalente = (
+            "Selic bruta equivalente do FII"
+            if modo == "selic"
+            else "IPCA bruto equivalente do FII"
+        )
         taxa_referencia_bruta = indice
         retorno_referencia = taxa_referencia_liquida
         finais = [
@@ -572,11 +583,12 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 + f"{pct(taxa_referencia_liquida)} líquido; "
                 f"+ prêmio {pp(premio)} = meta do FII {pct(taxa_alvo_fii)}"
             ),
-            pct(selic_equivalente_fii),
+            titulo_equivalente,
+            pct(taxa_bruta_equivalente_fii),
             (
                 f"DY mensal {pct(dy_mensal * 100)} → bruto mensal após "
-                f"gross-up do IR {pct(selic_mensal_equivalente_decimal * 100)} "
-                f"→ {pct(selic_equivalente_fii)} a.a."
+                f"gross-up do IR {pct(taxa_mensal_bruta_equivalente * 100)} "
+                f"→ {pct(taxa_bruta_equivalente_fii)} a.a."
             ),
             pct(taxa_referencia_bruta),
             f"Taxa {modo.upper()} anual usada na simulação",
@@ -597,7 +609,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         )
         return (
             "", "—", "h-100 shadow-sm border-0 metric-card", "—", "—",
-            "—", "—", "—", "—", "—", "—", "—", "—", "—",
+            "—", "—", "—", "—", "—", "—", "—", "—", "—", "—",
             empty, "", "light",
             f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",
             True,
