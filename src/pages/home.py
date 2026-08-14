@@ -248,7 +248,7 @@ layout = dbc.Container(
                                     0.0,
                                     maximum=15,
                                     minimum=-5,
-                                    unit=" p.p.",
+                                    unit="%",
                                 ),
                                 dbc.Button(
                                     [DashIconify(icon="solar:calculator-linear", width=20), " Calcular"],
@@ -339,7 +339,7 @@ layout = dbc.Container(
                             [
                                 dbc.Col(
                                     metric_card(
-                                        "Taxa bruta equivalente do FII",
+                                        "Selic bruta equivalente do FII",
                                         "selic-equivalente-fii",
                                         "solar:scale-linear",
                                         "success",
@@ -480,22 +480,36 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         indice = float(selic if modo == "selic" else ipca)
         premio = float(premio)
         fator_liquido_ir = 1 - ALIQUOTA_IR / 100
-        taxa_referencia_liquida = indice * fator_liquido_ir
+        if modo == "selic":
+            taxa_referencia_mensal_bruta = (1 + indice / 100) ** (1 / 12) - 1
+            taxa_referencia_mensal_liquida = (
+                taxa_referencia_mensal_bruta * fator_liquido_ir
+            )
+            taxa_referencia_liquida = (
+                (1 + taxa_referencia_mensal_liquida) ** 12 - 1
+            ) * 100
+        else:
+            taxa_referencia_liquida = indice * fator_liquido_ir
         taxa_alvo_fii = taxa_referencia_liquida + premio
         if taxa_alvo_fii <= 0:
             raise ValueError("A taxa-alvo precisa ser maior que zero.")
 
         preco = fii["preco"]
         proventos = fii["proventos_12m"]
-        dy = proventos / preco * 100
+        dy_decimal = proventos / preco
+        dy = dy_decimal * 100
+        dy_mensal = dy_decimal / 12
 
         # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
-        retorno_fii = ((1 + (dy / 100) / 12) ** 12 - 1) * 100
+        retorno_fii = ((1 + dy_mensal) ** 12 - 1) * 100
         taxa_alvo_mensal = (1 + taxa_alvo_fii / 100) ** (1 / 12) - 1
         preco_teto = proventos / (12 * taxa_alvo_mensal)
 
-        # Gross-up do retorno efetivo atual do FII para uma aplicação tributada.
-        selic_equivalente_fii = retorno_fii / fator_liquido_ir
+        # Gross-up do DY mensal e anualização da taxa bruta equivalente.
+        selic_mensal_equivalente_decimal = dy_mensal / fator_liquido_ir
+        selic_equivalente_fii = (
+            (1 + selic_mensal_equivalente_decimal) ** 12 - 1
+        ) * 100
         taxa_referencia_bruta = indice
         retorno_referencia = taxa_referencia_liquida
         finais = [
@@ -543,20 +557,26 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             brl(preco_teto),
             pct(dy),
             (
-                f"(1 + {pct(dy)} / 12)¹² - 1 = {pct(retorno_fii)} "
+                f"Renda mensal média: {pct(dy_mensal * 100)}; "
+                f"(1 + {pct(dy)} / 12)¹² - 1 = {pct(retorno_fii)} a.a. "
                 f"→ valor final {brl(finais[0])}"
             ),
             pct(taxa_referencia_liquida),
             (
-                f"{modo.upper()} {pct(indice)} × "
-                f"(1 - IR {pct(ALIQUOTA_IR)}) = "
-                f"{pct(taxa_referencia_liquida)} líquido; "
+                (
+                    f"SELIC mensal bruta {pct(taxa_referencia_mensal_bruta * 100)} "
+                    f"× (1 - IR {pct(ALIQUOTA_IR)}), anualizada = "
+                    if modo == "selic"
+                    else f"IPCA {pct(indice)} × (1 - IR {pct(ALIQUOTA_IR)}) = "
+                )
+                + f"{pct(taxa_referencia_liquida)} líquido; "
                 f"+ prêmio {pp(premio)} = meta do FII {pct(taxa_alvo_fii)}"
             ),
             pct(selic_equivalente_fii),
             (
-                f"Retorno efetivo do FII {pct(retorno_fii)} ÷ "
-                f"(1 - IR {pct(ALIQUOTA_IR)})"
+                f"DY mensal {pct(dy_mensal * 100)} → bruto mensal após "
+                f"gross-up do IR {pct(selic_mensal_equivalente_decimal * 100)} "
+                f"→ {pct(selic_equivalente_fii)} a.a."
             ),
             pct(taxa_referencia_bruta),
             f"Taxa {modo.upper()} anual usada na simulação",
