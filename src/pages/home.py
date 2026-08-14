@@ -333,7 +333,7 @@ layout = dbc.Container(
                             [
                                 dbc.Col(
                                     metric_card(
-                                        "Selic bruta equivalente do FII",
+                                        "Taxa bruta equivalente do FII",
                                         "selic-equivalente-fii",
                                         "solar:scale-linear",
                                         "success",
@@ -343,7 +343,7 @@ layout = dbc.Container(
                                 ),
                                 dbc.Col(
                                     metric_card(
-                                        "Taxa Selic bruta usada",
+                                        "Taxa bruta da referência usada",
                                         "selic-bruta-usada",
                                         "solar:chart-square-linear",
                                         "warning",
@@ -473,30 +473,31 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         fii = obter_fii(symbol)
         indice = float(selic if modo == "selic" else ipca)
         premio = float(premio)
-        taxa_alvo_bruta = indice + premio
-        taxa_alvo_liquida = taxa_alvo_bruta * (1 - ALIQUOTA_IR / 100)
-        if taxa_alvo_liquida <= 0:
+        fator_liquido_ir = 1 - ALIQUOTA_IR / 100
+        taxa_referencia_liquida = indice * fator_liquido_ir
+        taxa_alvo_fii = taxa_referencia_liquida + premio
+        if taxa_alvo_fii <= 0:
             raise ValueError("A taxa-alvo precisa ser maior que zero.")
 
         preco = fii["preco"]
         proventos = fii["proventos_12m"]
         dy = proventos / preco * 100
-        preco_teto = proventos / (taxa_alvo_liquida / 100)
 
         # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
         retorno_fii = ((1 + (dy / 100) / 12) ** 12 - 1) * 100
-        fator_liquido_ir = 1 - ALIQUOTA_IR / 100
-        # No preço-teto, o FII entrega a taxa-alvo líquida. O gross-up mostra
-        # qual Selic bruta produziria o mesmo retorno após o IR.
-        selic_equivalente_fii = taxa_alvo_liquida / fator_liquido_ir
-        selic_bruta_usada = float(selic)
-        retorno_referencia = taxa_alvo_liquida
+        taxa_alvo_mensal = (1 + taxa_alvo_fii / 100) ** (1 / 12) - 1
+        preco_teto = proventos / (12 * taxa_alvo_mensal)
+
+        # Gross-up do retorno efetivo atual do FII para uma aplicação tributada.
+        selic_equivalente_fii = retorno_fii / fator_liquido_ir
+        taxa_referencia_bruta = indice
+        retorno_referencia = taxa_referencia_liquida
         finais = [
             INVESTIMENTO * (1 + retorno_fii / 100),
             INVESTIMENTO * (1 + retorno_referencia / 100),
         ]
         lucros = [valor_final - INVESTIMENTO for valor_final in finais]
-        labels = [f"{fii['symbol']} (proventos)", f"{modo.upper()} + prêmio (líquido)"]
+        labels = [f"{fii['symbol']} (proventos reinvestidos)", f"{modo.upper()} líquido"]
         fig = go.Figure(
             go.Bar(
                 x=labels,
@@ -521,8 +522,9 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         diagnostico = (
             f"A cotação está {abs(margem):.1f}% "
             f"{'abaixo' if abaixo else 'acima'} do preço-teto. "
-            f"Taxa-alvo: {pct(taxa_alvo_bruta)} bruta e {pct(taxa_alvo_liquida)} "
-            "líquida após IR."
+            f"{modo.upper()} líquido: {pct(taxa_referencia_liquida)}. "
+            f"Prêmio de risco: {pct(premio)}. "
+            f"Retorno mínimo exigido do FII: {pct(taxa_alvo_fii)}."
         )
         return (
             f"{fii['nome']} · {fii['symbol']} · proventos em 12m: {brl(proventos)} por cota",
@@ -538,18 +540,20 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 f"(1 + {pct(dy)} / 12)¹² - 1 = {pct(retorno_fii)} "
                 f"→ valor final {brl(finais[0])}"
             ),
-            pct(taxa_alvo_liquida),
+            pct(taxa_referencia_liquida),
             (
-                f"({modo.upper()} {pct(indice)} + prêmio {pct(premio)}) "
-                f"× (1 - IR {pct(ALIQUOTA_IR)}) = {pct(taxa_alvo_liquida)}"
+                f"{modo.upper()} {pct(indice)} × "
+                f"(1 - IR {pct(ALIQUOTA_IR)}) = "
+                f"{pct(taxa_referencia_liquida)} líquido; "
+                f"+ prêmio {pct(premio)} = meta do FII {pct(taxa_alvo_fii)}"
             ),
             pct(selic_equivalente_fii),
             (
-                f"Taxa-alvo líquida do FII {pct(taxa_alvo_liquida)} ÷ "
+                f"Retorno efetivo do FII {pct(retorno_fii)} ÷ "
                 f"(1 - IR {pct(ALIQUOTA_IR)})"
             ),
-            pct(selic_bruta_usada),
-            "Taxa Selic anual informada na simulação",
+            pct(taxa_referencia_bruta),
+            f"Taxa {modo.upper()} anual usada na simulação",
             brl(lucros[0]),
             brl(lucros[1]),
             fig,
