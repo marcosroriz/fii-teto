@@ -25,6 +25,7 @@ FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICK
 FALLBACK_SELIC = 14.0
 FALLBACK_IPCA = 5.0
 INVESTIMENTO = 10_000.0
+ALIQUOTA_IR = 22.5
 
 
 def brl(value: float | None) -> str:
@@ -188,7 +189,7 @@ layout = dbc.Container(
                                     html.Strong("Premissas"),
                                     html.Div(
                                         "Proventos de 12 meses, reinvestimento integral e "
-                                        "IR de 20% na Selic/IPCA."
+                                        f"IR de {ALIQUOTA_IR:.1f}% na Selic/IPCA."
                                     ),
                                 ]
                             ),
@@ -332,6 +333,31 @@ layout = dbc.Container(
                             [
                                 dbc.Col(
                                     metric_card(
+                                        "Selic bruta equivalente do FII",
+                                        "selic-equivalente-fii",
+                                        "solar:scale-linear",
+                                        "success",
+                                        subtitle_id="selic-equivalente-fii-detalhe",
+                                    ),
+                                    md=6,
+                                ),
+                                dbc.Col(
+                                    metric_card(
+                                        "Taxa Selic bruta usada",
+                                        "selic-bruta-usada",
+                                        "solar:chart-square-linear",
+                                        "warning",
+                                        subtitle_id="selic-bruta-usada-detalhe",
+                                    ),
+                                    md=6,
+                                ),
+                            ],
+                            className="g-3 mt-0",
+                        ),
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    metric_card(
                                         "Lucro estimado no FII",
                                         "lucro-fii",
                                         "solar:wallet-money-linear",
@@ -423,6 +449,10 @@ def atualizar_links_externos(symbol):
     Output("dividend-yield-detalhe", "children"),
     Output("taxa-liquida-alternativa", "children"),
     Output("taxa-liquida-detalhe", "children"),
+    Output("selic-equivalente-fii", "children"),
+    Output("selic-equivalente-fii-detalhe", "children"),
+    Output("selic-bruta-usada", "children"),
+    Output("selic-bruta-usada-detalhe", "children"),
     Output("lucro-fii", "children"),
     Output("lucro-referencia", "children"),
     Output("grafico-comparacao", "figure"),
@@ -444,7 +474,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         indice = float(selic if modo == "selic" else ipca)
         premio = float(premio)
         taxa_alvo_bruta = indice + premio
-        taxa_alvo_liquida = taxa_alvo_bruta * 0.80
+        taxa_alvo_liquida = taxa_alvo_bruta * (1 - ALIQUOTA_IR / 100)
         if taxa_alvo_liquida <= 0:
             raise ValueError("A taxa-alvo precisa ser maior que zero.")
 
@@ -455,6 +485,9 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
 
         # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
         retorno_fii = ((1 + (dy / 100) / 12) ** 12 - 1) * 100
+        fator_liquido_ir = 1 - ALIQUOTA_IR / 100
+        selic_equivalente_fii = retorno_fii / fator_liquido_ir
+        selic_bruta_usada = float(selic)
         retorno_referencia = taxa_alvo_liquida
         finais = [
             INVESTIMENTO * (1 + retorno_fii / 100),
@@ -506,8 +539,15 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             pct(taxa_alvo_liquida),
             (
                 f"({modo.upper()} {pct(indice)} + prêmio {pct(premio)}) "
-                f"× (1 - IR 20%) = {pct(taxa_alvo_liquida)}"
+                f"× (1 - IR {pct(ALIQUOTA_IR)}) = {pct(taxa_alvo_liquida)}"
             ),
+            pct(selic_equivalente_fii),
+            (
+                f"Retorno anual do FII {pct(retorno_fii)} ÷ "
+                f"(1 - IR {pct(ALIQUOTA_IR)})"
+            ),
+            pct(selic_bruta_usada),
+            "Taxa Selic anual informada na simulação",
             brl(lucros[0]),
             brl(lucros[1]),
             fig,
@@ -525,7 +565,8 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         )
         return (
             "", "—", "h-100 shadow-sm border-0 metric-card", "—", "—",
-            "—", "—", "—", "—", "—", empty, "", "light",
+            "—", "—", "—", "—", "—", "—", "—", "—", "—",
+            empty, "", "light",
             f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",
             True,
         )
