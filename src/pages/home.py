@@ -39,6 +39,10 @@ def pct(value: float | None) -> str:
     return "—" if value is None else f"{value:.2f}%".replace(".", ",")
 
 
+def pp(value: float | None) -> str:
+    return "—" if value is None else f"{value:+.2f} p.p.".replace(".", ",")
+
+
 def _safe_number(value: Any) -> float | None:
     try:
         number = float(value)
@@ -135,10 +139,11 @@ def slider_block(
     value: float,
     maximum: float = 20,
     minimum: float = 0,
+    unit: str = "%",
 ):
     mark_step = 2
     marks = {
-        i: f"{i:+d}%" if minimum < 0 else f"{i}%"
+        i: f"{i:+d}{unit}" if minimum < 0 else f"{i}{unit}"
         for i in range(int(minimum), int(maximum) + 1, mark_step)
     }
     return html.Div(
@@ -238,11 +243,12 @@ layout = dbc.Container(
                                     id="bloco-ipca",
                                 ),
                                 slider_block(
-                                    "Prêmio de risco",
+                                    "Prêmio de risco (p.p.)",
                                     "premio-risco",
                                     0.0,
                                     maximum=15,
                                     minimum=-5,
+                                    unit=" p.p.",
                                 ),
                                 dbc.Button(
                                     [DashIconify(icon="solar:calculator-linear", width=20), " Calcular"],
@@ -523,7 +529,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             f"A cotação está {abs(margem):.1f}% "
             f"{'abaixo' if abaixo else 'acima'} do preço-teto. "
             f"{modo.upper()} líquido: {pct(taxa_referencia_liquida)}. "
-            f"Prêmio de risco: {pct(premio)}. "
+            f"Prêmio de risco: {pp(premio)}. "
             f"Retorno mínimo exigido do FII: {pct(taxa_alvo_fii)}."
         )
         return (
@@ -545,7 +551,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 f"{modo.upper()} {pct(indice)} × "
                 f"(1 - IR {pct(ALIQUOTA_IR)}) = "
                 f"{pct(taxa_referencia_liquida)} líquido; "
-                f"+ prêmio {pct(premio)} = meta do FII {pct(taxa_alvo_fii)}"
+                f"+ prêmio {pp(premio)} = meta do FII {pct(taxa_alvo_fii)}"
             ),
             pct(selic_equivalente_fii),
             (
