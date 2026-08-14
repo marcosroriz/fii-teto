@@ -486,7 +486,9 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
         retorno_fii = ((1 + (dy / 100) / 12) ** 12 - 1) * 100
         fator_liquido_ir = 1 - ALIQUOTA_IR / 100
-        selic_equivalente_fii = retorno_fii / fator_liquido_ir
+        # No preço-teto, o FII entrega a taxa-alvo líquida. O gross-up mostra
+        # qual Selic bruta produziria o mesmo retorno após o IR.
+        selic_equivalente_fii = taxa_alvo_liquida / fator_liquido_ir
         selic_bruta_usada = float(selic)
         retorno_referencia = taxa_alvo_liquida
         finais = [
@@ -543,7 +545,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             ),
             pct(selic_equivalente_fii),
             (
-                f"Retorno anual do FII {pct(retorno_fii)} ÷ "
+                f"Taxa-alvo líquida do FII {pct(taxa_alvo_liquida)} ÷ "
                 f"(1 - IR {pct(ALIQUOTA_IR)})"
             ),
             pct(selic_bruta_usada),
