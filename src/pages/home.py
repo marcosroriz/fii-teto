@@ -113,9 +113,10 @@ def metric_card(
     title_id: str | None = None,
 ):
     card_props = {"id": card_id} if card_id else {}
+    title_props = {"id": title_id} if title_id else {}
     content = [
         html.Div(
-            [DashIconify(icon=icon, width=22), html.Span(title, id=title_id)],
+            [DashIconify(icon=icon, width=22), html.Span(title, **title_props)],
             className=f"d-flex gap-2 align-items-center text-{color}",
         ),
         html.Div("—", id=value_id, className="metric-value mt-2"),
