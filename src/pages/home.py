@@ -484,8 +484,14 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         indice = float(selic if modo == "selic" else ipca)
         premio = float(premio)
         fator_liquido_ir = 1 - ALIQUOTA_IR / 100
+        taxa_referencia_bruta = indice + premio
+        if taxa_referencia_bruta <= 0:
+            raise ValueError("A taxa de referência bruta deve ser maior que zero.")
+
         if modo == "selic":
-            taxa_referencia_mensal_bruta = (1 + indice / 100) ** (1 / 12) - 1
+            taxa_referencia_mensal_bruta = (
+                1 + taxa_referencia_bruta / 100
+            ) ** (1 / 12) - 1
             taxa_referencia_mensal_liquida = (
                 taxa_referencia_mensal_bruta * fator_liquido_ir
             )
@@ -493,10 +499,9 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 (1 + taxa_referencia_mensal_liquida) ** 12 - 1
             ) * 100
         else:
-            taxa_referencia_liquida = indice * fator_liquido_ir
-        taxa_alvo_fii = taxa_referencia_liquida + premio
-        if taxa_alvo_fii <= 0:
-            raise ValueError("A taxa-alvo precisa ser maior que zero.")
+            taxa_referencia_liquida = taxa_referencia_bruta * fator_liquido_ir
+
+        taxa_alvo_fii = taxa_referencia_liquida
 
         preco = fii["preco"]
         proventos = fii["proventos_12m"]
@@ -521,7 +526,6 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             if modo == "selic"
             else "IPCA bruto equivalente do FII"
         )
-        taxa_referencia_bruta = indice
         retorno_referencia = taxa_referencia_liquida
         finais = [
             INVESTIMENTO * (1 + retorno_fii / 100),
@@ -557,6 +561,12 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             f"Prêmio de risco: {pp(premio)}. "
             f"Retorno mínimo exigido do FII: {pct(taxa_alvo_fii)}."
         )
+        detalhe_taxa_bruta = (
+            f"{modo.upper()} {pct(indice)} + prêmio {pp(premio)} = "
+            f"{pct(taxa_referencia_bruta)} a.a."
+            if premio != 0
+            else f"Taxa {modo.upper()} anual usada na simulação"
+        )
         return (
             f"{fii['nome']} · {fii['symbol']} · proventos em 12m: {brl(proventos)} por cota",
             brl(preco),
@@ -578,10 +588,13 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                     f"SELIC mensal bruta {pct(taxa_referencia_mensal_bruta * 100)} "
                     f"× (1 - IR {pct(ALIQUOTA_IR)}), anualizada = "
                     if modo == "selic"
-                    else f"IPCA {pct(indice)} × (1 - IR {pct(ALIQUOTA_IR)}) = "
+                    else (
+                        f"IPCA + prêmio {pct(taxa_referencia_bruta)} "
+                        f"× (1 - IR {pct(ALIQUOTA_IR)}) = "
+                    )
                 )
-                + f"{pct(taxa_referencia_liquida)} líquido; "
-                f"+ prêmio {pp(premio)} = meta do FII {pct(taxa_alvo_fii)}"
+                + f"{pct(taxa_referencia_liquida)} líquido = "
+                f"meta do FII {pct(taxa_alvo_fii)}"
             ),
             titulo_equivalente,
             pct(taxa_bruta_equivalente_fii),
@@ -591,7 +604,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 f"→ {pct(taxa_bruta_equivalente_fii)} a.a."
             ),
             pct(taxa_referencia_bruta),
-            f"Taxa {modo.upper()} anual usada na simulação",
+            detalhe_taxa_bruta,
             brl(lucros[0]),
             brl(lucros[1]),
             fig,
