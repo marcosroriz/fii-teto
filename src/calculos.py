@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+import pandas as pd
+
 ALIQUOTA_IR = 22.5
+
+
+def calcular_proventos(history) -> tuple[float, float]:
+    """Retorna proventos de 12 meses e dos últimos 3 meses anualizados."""
+    dividendos = history.get("Dividends")
+    if dividendos is None or dividendos.empty:
+        return 0.0, 0.0
+
+    dividendos = dividendos.fillna(0)
+    proventos_12m = float(dividendos.sum())
+    inicio_3m = dividendos.index.max() - pd.DateOffset(months=3)
+    proventos_3m_anualizados = float(
+        dividendos.loc[dividendos.index >= inicio_3m].sum()
+    ) * 4
+    return proventos_12m, proventos_3m_anualizados
 
 
 def calcular_rendimentos_fii(

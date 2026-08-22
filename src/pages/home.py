@@ -17,7 +17,7 @@ import requests
 import yfinance as yf
 
 from fii_tickers import FII_TICKERS
-from calculos import calcular_rendimentos_fii
+from calculos import calcular_proventos, calcular_rendimentos_fii
 
 
 # O Yahoo Finance não oferece um endpoint de listagem completa da B3. A lista
@@ -87,8 +87,7 @@ def obter_fii(symbol: str) -> dict[str, Any]:
     if preco is None:
         raise ValueError("Não foi possível identificar a cotação atual.")
 
-    dividendos = history.get("Dividends")
-    proventos_12m = float(dividendos.fillna(0).sum()) if dividendos is not None else 0.0
+    proventos_12m, proventos_3m_anualizados = calcular_proventos(history)
 
     try:
         info = ticker.get_info()
@@ -100,6 +99,7 @@ def obter_fii(symbol: str) -> dict[str, Any]:
         "nome": nome,
         "preco": preco,
         "proventos_12m": proventos_12m,
+        "proventos_3m_anualizados": proventos_3m_anualizados,
     }
 
 
@@ -237,6 +237,17 @@ layout = dbc.Container(
                                     inline=True,
                                     className="mb-4 mode-options",
                                 ),
+                                html.Label("Dividendo", className="fw-semibold"),
+                                dbc.RadioItems(
+                                    id="periodo-dividendos",
+                                    options=[
+                                        {"label": " Anual", "value": "anual"},
+                                        {"label": " 3m Ajustado", "value": "3m_ajustado"},
+                                    ],
+                                    value="anual",
+                                    inline=True,
+                                    className="mb-4 mode-options",
+                                ),
                                 html.Div(
                                     slider_block("Taxa Selic anual", "taxa-selic", FALLBACK_SELIC),
                                     id="bloco-selic",
@@ -322,6 +333,7 @@ layout = dbc.Container(
                                         "dividend-yield",
                                         "solar:chart-2-linear",
                                         subtitle_id="dividend-yield-detalhe",
+                                        title_id="titulo-dividend-yield",
                                     ),
                                     md=6,
                                 ),
@@ -455,6 +467,7 @@ def atualizar_links_externos(symbol):
     Output("cotacao", "children"),
     Output("card-cotacao", "className"),
     Output("preco-teto", "children"),
+    Output("titulo-dividend-yield", "children"),
     Output("dividend-yield", "children"),
     Output("dividend-yield-detalhe", "children"),
     Output("taxa-liquida-alternativa", "children"),
@@ -474,12 +487,13 @@ def atualizar_links_externos(symbol):
     Input("calcular-button", "n_clicks"),
     State("fii-dropdown", "value"),
     State("modo-calculo", "value"),
+    State("periodo-dividendos", "value"),
     State("taxa-selic", "value"),
     State("taxa-ipca", "value"),
     State("premio-risco", "value"),
     prevent_initial_call=False,
 )
-def calcular(_clicks, symbol, modo, selic, ipca, premio):
+def calcular(_clicks, symbol, modo, periodo_dividendos, selic, ipca, premio):
     try:
         fii = obter_fii(symbol)
         indice = float(selic if modo == "selic" else ipca)
@@ -505,7 +519,18 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
         taxa_alvo_fii = taxa_referencia_liquida
 
         preco = fii["preco"]
-        proventos = fii["proventos_12m"]
+        tres_meses_ajustado = periodo_dividendos == "3m_ajustado"
+        proventos = (
+            fii["proventos_3m_anualizados"]
+            if tres_meses_ajustado
+            else fii["proventos_12m"]
+        )
+        descricao_periodo = "últimos 3m anualizados" if tres_meses_ajustado else "12m"
+        titulo_dividend_yield = (
+            "Dividend yield (3m anualizado)"
+            if tres_meses_ajustado
+            else "Dividend yield 12m"
+        )
         rendimentos_fii = calcular_rendimentos_fii(preco, proventos, ALIQUOTA_IR)
         dy = rendimentos_fii["dy"]
         dy_mensal = rendimentos_fii["dy_mensal_decimal"]
@@ -569,7 +594,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             else f"Taxa {modo.upper()} anual usada na simulação"
         )
         return (
-            f"{fii['nome']} · {fii['symbol']} · proventos em 12m: {brl(proventos)} por cota",
+            f"{fii['nome']} · {fii['symbol']} · proventos ({descricao_periodo}): {brl(proventos)} por cota",
             brl(preco),
             (
                 "h-100 shadow-sm border-0 metric-card metric-card-success"
@@ -577,6 +602,7 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
                 else "h-100 shadow-sm border-0 metric-card metric-card-danger"
             ),
             brl(preco_teto),
+            titulo_dividend_yield,
             pct(dy),
             (
                 f"Renda mensal média: {pct(dy_mensal * 100)}; "
@@ -622,7 +648,8 @@ def calcular(_clicks, symbol, modo, selic, ipca, premio):
             yaxis={"visible": False},
         )
         return (
-            "", "—", "h-100 shadow-sm border-0 metric-card", "—", "—",
+            "", "—", "h-100 shadow-sm border-0 metric-card", "—",
+            "Dividend yield", "—",
             "—", "—", "—", "—", "—", "—", "—", "—", "—", "—",
             empty, "", "light",
             f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",

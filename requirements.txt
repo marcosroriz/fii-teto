@@ -9,5 +9,6 @@ seaborn
 gunicorn
 werkzeug
 yfinance
+pandas
 requests
 plotly

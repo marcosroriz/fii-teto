@@ -2,12 +2,35 @@ import sys
 import unittest
 from pathlib import Path
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from calculos import calcular_rendimentos_fii
+from calculos import calcular_proventos, calcular_rendimentos_fii
 
 
 class CalculosFiiTest(unittest.TestCase):
+    def test_proventos_dos_ultimos_tres_meses_sao_anualizados(self):
+        indice = pd.to_datetime(
+            [
+                "2025-01-15",
+                "2025-05-15",
+                "2025-06-15",
+                "2025-07-15",
+                "2025-08-15",
+                "2025-08-22",
+            ]
+        ).tz_localize("America/Sao_Paulo")
+        history = pd.DataFrame(
+            {"Dividends": [1.0, 2.0, 3.0, 4.0, 5.0, 0.0]},
+            index=indice,
+        )
+
+        anual, tres_meses_ajustado = calcular_proventos(history)
+
+        self.assertEqual(anual, 15.0)
+        self.assertEqual(tres_meses_ajustado, 48.0)
+
     def test_exemplo_obrigatorio(self):
         resultado = calcular_rendimentos_fii(89.30, 9.84)
 
