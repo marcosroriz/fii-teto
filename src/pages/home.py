@@ -4,27 +4,20 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
-from math import prod
-from typing import Any
-
 import dash
 from dash import Input, Output, State, callback, dcc, html, no_update
 import dash_bootstrap_components as dbc
 from dash_iconify import DashIconify
 import plotly.graph_objects as go
-import requests
-import yfinance as yf
 
 from fii_tickers import FII_TICKERS
-from calculos import calcular_proventos, calcular_rendimentos_fii
+from calculos import calcular_rendimentos_fii
+from dados_mercado import FALLBACK_IPCA, FALLBACK_SELIC, obter_fii, obter_indices
 
 
 # O Yahoo Finance não oferece um endpoint de listagem completa da B3. A lista
 # publicada em fii_tickers.py alimenta o dropdown e o yfinance valida/consulta o FII.
 FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
-FALLBACK_SELIC = 14.0
-FALLBACK_IPCA = 5.0
 INVESTIMENTO = 10_000.0
 ALIQUOTA_IR = 22.5
 
@@ -42,65 +35,6 @@ def pct(value: float | None) -> str:
 
 def pp(value: float | None) -> str:
     return "—" if value is None else f"{value:+.2f} p.p.".replace(".", ",")
-
-
-def _safe_number(value: Any) -> float | None:
-    try:
-        number = float(value)
-        return number if number > 0 else None
-    except (TypeError, ValueError):
-        return None
-
-
-@lru_cache(maxsize=1)
-def obter_indices() -> tuple[float, float, str]:
-    """Obtém Selic meta (SGS 432) e IPCA acumulado em 12 meses (SGS 433)."""
-    try:
-        url = (
-            "https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados/"
-            "ultimos/{n}?formato=json"
-        )
-        headers = {"User-Agent": "fii-teto/1.0"}
-        selic_data = requests.get(
-            url.format(serie=432, n=1), headers=headers, timeout=5
-        ).json()
-        ipca_data = requests.get(
-            url.format(serie=433, n=12), headers=headers, timeout=5
-        ).json()
-        selic = float(selic_data[-1]["valor"].replace(",", "."))
-        taxas_ipca = [float(item["valor"].replace(",", ".")) / 100 for item in ipca_data]
-        ipca = (prod(1 + taxa for taxa in taxas_ipca) - 1) * 100
-        return round(selic, 2), round(ipca, 2), "Banco Central do Brasil"
-    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
-        return FALLBACK_SELIC, FALLBACK_IPCA, "valores de contingência"
-
-
-@lru_cache(maxsize=128)
-def obter_fii(symbol: str) -> dict[str, Any]:
-    """Consulta cotação, proventos em 12 meses e valor patrimonial no Yahoo."""
-    ticker = yf.Ticker(symbol)
-    history = ticker.history(period="1y", auto_adjust=False)
-    if history.empty:
-        raise ValueError("O Yahoo Finance não retornou cotações para esse código.")
-
-    preco = _safe_number(history["Close"].dropna().iloc[-1])
-    if preco is None:
-        raise ValueError("Não foi possível identificar a cotação atual.")
-
-    proventos_12m, proventos_3m_anualizados = calcular_proventos(history)
-
-    try:
-        info = ticker.get_info()
-    except Exception:
-        info = {}
-    nome = info.get("longName") or info.get("shortName") or symbol.removesuffix(".SA")
-    return {
-        "symbol": symbol.removesuffix(".SA"),
-        "nome": nome,
-        "preco": preco,
-        "proventos_12m": proventos_12m,
-        "proventos_3m_anualizados": proventos_3m_anualizados,
-    }
 
 
 def metric_card(

@@ -1,0 +1,238 @@
+#!/usr/bin/env python
+"""Comparação do dividend yield recente de múltiplos FIIs."""
+
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import dash
+import dash_bootstrap_components as dbc
+from dash import Input, Output, State, callback, dcc, html
+from dash_iconify import DashIconify
+import plotly.graph_objects as go
+
+from dados_mercado import obter_fii, obter_indices
+from fii_tickers import FII_TICKERS
+
+ALIQUOTA_IR = 22.5
+PREMIO_IPCA = 8.0
+MAX_TICKERS = 10
+FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
+
+
+def taxa_selic_liquida(selic: float) -> float:
+    mensal_bruta = (1 + selic / 100) ** (1 / 12) - 1
+    mensal_liquida = mensal_bruta * (1 - ALIQUOTA_IR / 100)
+    return ((1 + mensal_liquida) ** 12 - 1) * 100
+
+
+def criar_grafico(resultados, selic_liquida: float, ipca_mais_oito_liquido: float):
+    ordenados = sorted(resultados, key=lambda item: item["dy"], reverse=True)
+    deslocamentos = [-0.13, 0.13, -0.07, 0.07, 0, -0.17, 0.17, -0.1, 0.1, 0]
+    cores = [
+        "#198754" if item["dy"] >= selic_liquida else "#d99b2b"
+        for item in ordenados
+    ]
+    fig = go.Figure(
+        go.Scatter(
+            x=deslocamentos[: len(ordenados)],
+            y=[item["dy"] for item in ordenados],
+            mode="markers+text",
+            text=[item["symbol"] for item in ordenados],
+            textposition="middle right",
+            customdata=[
+                [item["nome"], item["preco"], item["proventos"]]
+                for item in ordenados
+            ],
+            hovertemplate=(
+                "<b>%{text}</b><br>%{customdata[0]}<br>"
+                "DY líquido: %{y:.2f}% a.a.<br>"
+                "Cotação: R$ %{customdata[1]:.2f}<br>"
+                "Proventos 3m anualizados: R$ %{customdata[2]:.2f}<extra></extra>"
+            ),
+            marker={"size": 16, "color": cores, "line": {"color": "white", "width": 2}},
+        )
+    )
+    linhas = [
+        (selic_liquida, f"SELIC líquida ({selic_liquida:.2f}%)", "#136f63"),
+        (
+            ipca_mais_oito_liquido,
+            f"IPCA + 8% líquido ({ipca_mais_oito_liquido:.2f}%)",
+            "#8f5d5d",
+        ),
+    ]
+    for taxa, rotulo, cor in linhas:
+        fig.add_hline(
+            y=taxa,
+            line_color=cor,
+            line_width=2,
+            line_dash="dash",
+            annotation_text=rotulo,
+            annotation_position="top left",
+        )
+    valores = [item["dy"] for item in ordenados] + [selic_liquida, ipca_mais_oito_liquido]
+    margem = max(1.5, (max(valores) - min(valores)) * 0.15)
+    fig.update_layout(
+        height=650,
+        margin={"l": 65, "r": 120, "t": 45, "b": 35},
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+        xaxis={"visible": False, "range": [-0.32, 0.42], "fixedrange": True},
+        yaxis={
+            "title": "Taxa líquida anual (%)",
+            "ticksuffix": "%",
+            "range": [max(0, min(valores) - margem), max(valores) + margem],
+            "gridcolor": "#e2e8e5",
+        },
+    )
+    return fig
+
+
+layout = dbc.Container(
+    [
+        html.Div(
+            [
+                html.Div("COMPARAÇÃO DE RENDA", className="eyebrow"),
+                html.H1("Compare até 10 fundos imobiliários", className="display-6 fw-bold"),
+                html.P(
+                    "Veja o dividend yield baseado nos últimos três meses, anualizado, "
+                    "contra a SELIC e o IPCA + 8% líquidos de IR.",
+                    className="lead text-secondary",
+                ),
+            ],
+            className="py-4",
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dbc.Card(
+                        dbc.CardBody(
+                            [
+                                html.Label("Fundos imobiliários", className="fw-semibold mb-2"),
+                                dcc.Dropdown(
+                                    id="comparacao-tickers",
+                                    options=FII_OPTIONS,
+                                    value=[
+                                        "HGLG11.SA",
+                                        "BTLG11.SA",
+                                        "XPLG11.SA",
+                                        "PMLL11.SA",
+                                        "XPML11.SA",
+                                        "KNCR11.SA",
+                                        "XPCI11.SA",
+                                        "BTCI11.SA",
+                                        "FATN11.SA",
+                                        "HGCR11.SA",
+                                    ],
+                                    multi=True,
+                                    searchable=True,
+                                    placeholder="Selecione até 10 tickers",
+                                ),
+                                html.Small(
+                                    "Selecione de 1 a 10 FIIs. Os dados são consultados no Yahoo Finance.",
+                                    className="d-block text-muted mt-2",
+                                ),
+                                dbc.Button(
+                                    [DashIconify(icon="solar:chart-2-linear", width=20), " Comparar"],
+                                    id="comparar-button",
+                                    color="primary",
+                                    size="lg",
+                                    className="w-100 mt-4",
+                                ),
+                                html.Div(id="comparacao-fonte", className="small text-muted mt-3"),
+                            ]
+                        ),
+                        className="shadow-sm border-0 config-card",
+                    ),
+                    lg=4,
+                    className="mb-4",
+                ),
+                dbc.Col(
+                    [
+                        dbc.Alert(id="comparacao-erro", color="danger", is_open=False),
+                        html.Div(id="comparacao-resumo", className="mb-3"),
+                        dbc.Card(
+                            dbc.CardBody(
+                                dcc.Loading(
+                                    dcc.Graph(
+                                        id="grafico-comparacao-tickers",
+                                        config={"displayModeBar": False},
+                                    )
+                                )
+                            ),
+                            className="shadow-sm border-0",
+                        ),
+                    ],
+                    lg=8,
+                ),
+            ],
+            className="pb-5",
+        ),
+    ],
+    fluid=True,
+    className="page-wrap",
+)
+
+
+@callback(
+    Output("grafico-comparacao-tickers", "figure"),
+    Output("comparacao-resumo", "children"),
+    Output("comparacao-fonte", "children"),
+    Output("comparacao-erro", "children"),
+    Output("comparacao-erro", "is_open"),
+    Input("comparar-button", "n_clicks"),
+    State("comparacao-tickers", "value"),
+    prevent_initial_call=False,
+)
+def comparar_tickers(_clicks, symbols):
+    symbols = list(dict.fromkeys(symbols or []))
+    if not symbols or len(symbols) > MAX_TICKERS:
+        mensagem = "Selecione ao menos um e no máximo 10 tickers."
+        return go.Figure(), "", "", mensagem, True
+
+    selic, ipca, fonte = obter_indices()
+    selic_liquida = taxa_selic_liquida(selic)
+    ipca_mais_oito_liquido = (ipca + PREMIO_IPCA) * (1 - ALIQUOTA_IR / 100)
+    resultados = []
+    falhas = []
+    with ThreadPoolExecutor(max_workers=min(5, len(symbols))) as executor:
+        futuros = {executor.submit(obter_fii, symbol): symbol for symbol in symbols}
+        for futuro in as_completed(futuros):
+            symbol = futuros[futuro]
+            try:
+                fii = futuro.result()
+                resultados.append(
+                    {
+                        **fii,
+                        "proventos": fii["proventos_3m_anualizados"],
+                        "dy": fii["proventos_3m_anualizados"] / fii["preco"] * 100,
+                    }
+                )
+            except Exception:
+                falhas.append(symbol.removesuffix(".SA"))
+
+    if not resultados:
+        return go.Figure(), "", f"Índices: {fonte}.", "Não foi possível consultar os tickers.", True
+
+    acima_selic = sum(item["dy"] >= selic_liquida for item in resultados)
+    acima_ipca = sum(item["dy"] >= ipca_mais_oito_liquido for item in resultados)
+    total = len(resultados)
+    resumo = dbc.Row(
+        [
+            dbc.Col(dbc.Alert(f"{acima_selic} acima · {total - acima_selic} abaixo da SELIC", color="success"), md=6),
+            dbc.Col(dbc.Alert(f"{acima_ipca} acima · {total - acima_ipca} abaixo do IPCA + 8%", color="secondary"), md=6),
+        ],
+        className="g-2",
+    )
+    erro = f"Sem dados para: {', '.join(falhas)}." if falhas else ""
+    fonte_texto = (
+        f"Índices: {fonte}. SELIC {selic:.2f}% · IPCA 12m {ipca:.2f}% · "
+        f"IR considerado: {ALIQUOTA_IR:.1f}%."
+    )
+    return criar_grafico(resultados, selic_liquida, ipca_mais_oito_liquido), resumo, fonte_texto, erro, bool(falhas)
+
+
+dash.register_page(
+    __name__, name="Comparar FIIs", path="/comparacao", title="Comparação de FIIs"
+)
