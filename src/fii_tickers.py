@@ -1,4 +1,9 @@
-﻿"""Codigos de fundos publicados em https://fiis.com.br/lista-de-fundos-imobiliarios/.
+#!/usr/bin/env python
+# coding: utf-8
+
+# Lista de códigos dos fundos imobiliários disponíveis para consulta
+
+"""Codigos de fundos publicados em https://fiis.com.br/lista-de-fundos-imobiliarios/.
 
 Extracao realizada em 26/07/2026. Alguns codigos representam classes antigas,
 recibos ou ativos sem negociacao atual; a disponibilidade e validada pelo

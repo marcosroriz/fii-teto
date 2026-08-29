@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
-"""Entrada da aplicação Dash de análise de fundos imobiliários."""
+
+# Entrada da aplicação Dash de análise dos fundos imobiliários
 
 from __future__ import annotations
 

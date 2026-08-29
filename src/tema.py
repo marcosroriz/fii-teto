@@ -10,10 +10,8 @@ FONTE_TAMANHO = 14
 
 # Paleta de Cores: D3
 # https://plotly.com/python/discrete-color/
-# Tema alternativo: Pastel2 -- https://loading.io/color/feature/Pastel2-8/
 
 PALETA_CORES = px.colors.qualitative.D3
-PALETA_CORES_DISCRETA = px.colors.qualitative.D3
 
 # Cores Notáveis
 COR_SUCESSO = px.colors.qualitative.D3[2]

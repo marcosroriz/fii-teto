@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""Comparação do dividend yield recente de múltiplos FIIs."""
+# coding: utf-8
+
+# Página de comparação do dividend yield recente de múltiplos FIIs
 
 from __future__ import annotations
 

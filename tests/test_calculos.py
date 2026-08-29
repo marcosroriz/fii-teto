@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# Testes automatizados dos cálculos financeiros
+
 import sys
 import unittest
 from pathlib import Path

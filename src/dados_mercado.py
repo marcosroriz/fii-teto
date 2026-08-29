@@ -1,4 +1,7 @@
-"""Consultas e tratamento dos dados de mercado usados pelas páginas."""
+#!/usr/bin/env python
+# coding: utf-8
+
+# Consultas e tratamento dos dados de mercado usados pelas páginas
 
 from __future__ import annotations
 
@@ -6,6 +9,7 @@ from functools import lru_cache
 from math import prod
 from typing import Any
 
+import pandas as pd
 import requests
 import yfinance as yf
 
@@ -71,3 +75,62 @@ def obter_fii(symbol: str) -> dict[str, Any]:
         "proventos_12m": proventos_12m,
         "proventos_3m_anualizados": proventos_3m_anualizados,
     }
+
+
+@lru_cache(maxsize=32)
+def obter_historico_fii(
+    symbol: str, data_inicio: str, data_fim: str
+) -> tuple[pd.DataFrame, str]:
+    """Consulta cotações e proventos históricos de um FII no Yahoo Finance."""
+    ticker = yf.Ticker(symbol)
+    history = ticker.history(
+        start=data_inicio,
+        end=data_fim,
+        auto_adjust=False,
+        actions=True,
+    )
+    if history.empty:
+        raise ValueError("O Yahoo Finance não retornou o histórico desse código.")
+
+    history = history.copy()
+    history.index = pd.to_datetime(history.index).tz_localize(None)
+    try:
+        info = ticker.get_info()
+    except Exception:
+        info = {}
+    nome = info.get("longName") or info.get("shortName") or symbol.removesuffix(".SA")
+    return history, nome
+
+
+def _obter_serie_bcb(serie: int, data_inicio: str, data_fim: str) -> pd.Series:
+    url = f"https://api.bcb.gov.br/dados/serie/bcdata.sgs.{serie}/dados"
+    response = requests.get(
+        url,
+        params={
+            "formato": "json",
+            "dataInicial": pd.Timestamp(data_inicio).strftime("%d/%m/%Y"),
+            "dataFinal": pd.Timestamp(data_fim).strftime("%d/%m/%Y"),
+        },
+        headers={"User-Agent": "fii-teto/1.0"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    dados = response.json()
+    if not dados:
+        raise ValueError("O Banco Central não retornou dados para o período.")
+    return pd.Series(
+        [float(item["valor"].replace(",", ".")) for item in dados],
+        index=pd.to_datetime([item["data"] for item in dados], dayfirst=True),
+        dtype=float,
+    ).sort_index()
+
+
+@lru_cache(maxsize=8)
+def obter_indices_historicos(
+    data_inicio: str, data_fim: str
+) -> tuple[pd.Series, pd.Series]:
+    """Retorna a meta Selic diária (SGS 432) e o IPCA mensal (SGS 433)."""
+    return (
+        _obter_serie_bcb(432, data_inicio, data_fim),
+        _obter_serie_bcb(433, data_inicio, data_fim),
+    )

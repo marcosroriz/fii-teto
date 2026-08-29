@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
-"""Página principal da calculadora de preço-teto de FIIs."""
+
+# Página principal da calculadora de preço-teto dos fundos imobiliários
 
 from __future__ import annotations
 
@@ -11,9 +12,8 @@ from dash_iconify import DashIconify
 import plotly.graph_objects as go
 
 from fii_tickers import FII_TICKERS
-from calculos import calcular_rendimentos_fii
+from calculos import calcular_simulacao_fii
 from dados_mercado import FALLBACK_IPCA, FALLBACK_SELIC, obter_fii, obter_indices
-
 
 # O Yahoo Finance não oferece um endpoint de listagem completa da B3. A lista
 # publicada em fii_tickers.py alimenta o dropdown e o yfinance valida/consulta o FII.
@@ -80,8 +80,7 @@ def slider_block(
 ):
     mark_step = 2
     marks = {
-        i: f"{i:+d}{unit}" if minimum < 0 else f"{i}{unit}"
-        for i in range(int(minimum), int(maximum) + 1, mark_step)
+        i: f"{i:+d}{unit}" if minimum < 0 else f"{i}{unit}" for i in range(int(minimum), int(maximum) + 1, mark_step)
     }
     return html.Div(
         [
@@ -256,7 +255,9 @@ layout = dbc.Container(
                                     ),
                                     md=6,
                                 ),
-                                dbc.Col(metric_card("Preço-teto", "preco-teto", "solar:target-linear", "success"), md=6),
+                                dbc.Col(
+                                    metric_card("Preço-teto", "preco-teto", "solar:target-linear", "success"), md=6
+                                ),
                             ],
                             className="g-3",
                         ),
@@ -397,6 +398,140 @@ def atualizar_links_externos(symbol):
     )
 
 
+def selecionar_proventos(fii, periodo_dividendos):
+    tres_meses = periodo_dividendos == "3m_ajustado"
+    return {
+        "valor": fii["proventos_3m_anualizados"] if tres_meses else fii["proventos_12m"],
+        "descricao": "últimos 3m anualizados" if tres_meses else "12m",
+        "titulo_dy": "Dividend yield (3m anualizado)" if tres_meses else "Dividend yield 12m",
+    }
+
+
+def criar_grafico_simulacao(fii, modo, simulacao):
+    retornos = [simulacao["retorno_fii"], simulacao["taxa_referencia_liquida"]]
+    valores = [simulacao["valor_final_fii"], simulacao["valor_final_referencia"]]
+    fig = go.Figure(
+        go.Bar(
+            x=[f"{fii['symbol']} (proventos reinvestidos)", f"{modo.upper()} líquido"],
+            y=valores,
+            text=[f"{brl(valor)}<br>+{pct(retorno)}" for valor, retorno in zip(valores, retornos)],
+            textposition="outside",
+            marker_color=["#136f63", "#d99b2b"],
+        )
+    )
+    fig.update_layout(
+        margin={"l": 20, "r": 20, "t": 35, "b": 20},
+        yaxis_title="Valor após 12 meses (R$)",
+        yaxis_tickprefix="R$ ",
+        yaxis_tickformat=",.0f",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        showlegend=False,
+    )
+    return fig
+
+
+def detalhe_taxa_liquida(modo, simulacao):
+    if modo == "selic":
+        calculo = (
+            f"SELIC mensal bruta {pct(simulacao['taxa_referencia_mensal_bruta'] * 100)} "
+            f"× (1 - IR {pct(ALIQUOTA_IR)}), anualizada = "
+        )
+    else:
+        calculo = f"IPCA + prêmio {pct(simulacao['taxa_referencia_bruta'])} " f"× (1 - IR {pct(ALIQUOTA_IR)}) = "
+    return (
+        calculo
+        + f"{pct(simulacao['taxa_referencia_liquida'])} líquido = "
+        + f"meta do FII {pct(simulacao['taxa_alvo_fii'])}"
+    )
+
+
+def montar_resposta_sucesso(fii, proventos, modo, indice, premio, simulacao):
+    abaixo = simulacao["abaixo_preco_teto"]
+    titulo_equivalente = "Selic bruta equivalente do FII" if modo == "selic" else "IPCA bruto equivalente do FII"
+    detalhe_taxa_bruta = (
+        f"{modo.upper()} {pct(indice)} + prêmio {pp(premio)} = " f"{pct(simulacao['taxa_referencia_bruta'])} a.a."
+        if premio != 0
+        else f"Taxa {modo.upper()} anual usada na simulação"
+    )
+    diagnostico = (
+        f"A cotação está {abs(simulacao['margem_preco_teto']):.1f}% "
+        f"{'abaixo' if abaixo else 'acima'} do preço-teto. "
+        f"{modo.upper()} líquido: {pct(simulacao['taxa_referencia_liquida'])}. "
+        f"Prêmio de risco: {pp(premio)}. "
+        f"Retorno mínimo exigido do FII: {pct(simulacao['taxa_alvo_fii'])}."
+    )
+    return (
+        f"{fii['nome']} · {fii['symbol']} · proventos ({proventos['descricao']}): "
+        f"{brl(proventos['valor'])} por cota",
+        brl(fii["preco"]),
+        (
+            "h-100 shadow-sm border-0 metric-card metric-card-success"
+            if abaixo
+            else "h-100 shadow-sm border-0 metric-card metric-card-danger"
+        ),
+        brl(simulacao["preco_teto"]),
+        proventos["titulo_dy"],
+        pct(simulacao["dy"]),
+        (
+            f"Renda mensal média: {pct(simulacao['dy_mensal_decimal'] * 100)}; "
+            f"(1 + {pct(simulacao['dy'])} / 12)¹² - 1 = "
+            f"{pct(simulacao['retorno_fii'])} a.a. "
+            f"→ valor final {brl(simulacao['valor_final_fii'])}"
+        ),
+        pct(simulacao["taxa_referencia_liquida"]),
+        detalhe_taxa_liquida(modo, simulacao),
+        titulo_equivalente,
+        pct(simulacao["taxa_bruta_equivalente_fii"]),
+        (
+            f"DY mensal {pct(simulacao['dy_mensal_decimal'] * 100)} → bruto mensal após "
+            f"gross-up do IR {pct(simulacao['taxa_mensal_bruta_equivalente'] * 100)} "
+            f"→ {pct(simulacao['taxa_bruta_equivalente_fii'])} a.a."
+        ),
+        pct(simulacao["taxa_referencia_bruta"]),
+        detalhe_taxa_bruta,
+        brl(simulacao["lucro_fii"]),
+        brl(simulacao["lucro_referencia"]),
+        criar_grafico_simulacao(fii, modo, simulacao),
+        diagnostico,
+        "success" if abaixo else "warning",
+        "",
+        False,
+    )
+
+
+def montar_resposta_erro(exc):
+    vazio = go.Figure()
+    vazio.update_layout(
+        annotations=[{"text": "Não foi possível carregar a simulação", "showarrow": False}],
+        xaxis={"visible": False},
+        yaxis={"visible": False},
+    )
+    return (
+        "",
+        "—",
+        "h-100 shadow-sm border-0 metric-card",
+        "—",
+        "Dividend yield",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        "—",
+        vazio,
+        "",
+        "light",
+        f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",
+        True,
+    )
+
+
 @callback(
     Output("nome-fii", "children"),
     Output("cotacao", "children"),
@@ -433,163 +568,19 @@ def calcular(_clicks, symbol, modo, periodo_dividendos, selic, ipca, premio):
         fii = obter_fii(symbol)
         indice = float(selic if modo == "selic" else ipca)
         premio = float(premio)
-        fator_liquido_ir = 1 - ALIQUOTA_IR / 100
-        taxa_referencia_bruta = indice + premio
-        if taxa_referencia_bruta <= 0:
-            raise ValueError("A taxa de referência bruta deve ser maior que zero.")
-
-        if modo == "selic":
-            taxa_referencia_mensal_bruta = (
-                1 + taxa_referencia_bruta / 100
-            ) ** (1 / 12) - 1
-            taxa_referencia_mensal_liquida = (
-                taxa_referencia_mensal_bruta * fator_liquido_ir
-            )
-            taxa_referencia_liquida = (
-                (1 + taxa_referencia_mensal_liquida) ** 12 - 1
-            ) * 100
-        else:
-            taxa_referencia_liquida = taxa_referencia_bruta * fator_liquido_ir
-
-        taxa_alvo_fii = taxa_referencia_liquida
-
-        preco = fii["preco"]
-        tres_meses_ajustado = periodo_dividendos == "3m_ajustado"
-        proventos = (
-            fii["proventos_3m_anualizados"]
-            if tres_meses_ajustado
-            else fii["proventos_12m"]
+        proventos = selecionar_proventos(fii, periodo_dividendos)
+        simulacao = calcular_simulacao_fii(
+            fii["preco"],
+            proventos["valor"],
+            indice,
+            premio,
+            modo,
+            INVESTIMENTO,
+            ALIQUOTA_IR,
         )
-        descricao_periodo = "últimos 3m anualizados" if tres_meses_ajustado else "12m"
-        titulo_dividend_yield = (
-            "Dividend yield (3m anualizado)"
-            if tres_meses_ajustado
-            else "Dividend yield 12m"
-        )
-        rendimentos_fii = calcular_rendimentos_fii(preco, proventos, ALIQUOTA_IR)
-        dy = rendimentos_fii["dy"]
-        dy_mensal = rendimentos_fii["dy_mensal_decimal"]
-
-        # Aproxima o reinvestimento dos proventos em parcelas mensais iguais.
-        retorno_fii = rendimentos_fii["retorno_fii"]
-        taxa_alvo_mensal = (1 + taxa_alvo_fii / 100) ** (1 / 12) - 1
-        preco_teto = proventos / (12 * taxa_alvo_mensal)
-
-        # Gross-up do DY mensal e anualização da taxa bruta equivalente.
-        taxa_mensal_bruta_equivalente = rendimentos_fii[
-            "taxa_mensal_bruta_equivalente"
-        ]
-        taxa_bruta_equivalente_fii = rendimentos_fii[
-            "taxa_bruta_equivalente_fii"
-        ]
-        titulo_equivalente = (
-            "Selic bruta equivalente do FII"
-            if modo == "selic"
-            else "IPCA bruto equivalente do FII"
-        )
-        retorno_referencia = taxa_referencia_liquida
-        finais = [
-            INVESTIMENTO * (1 + retorno_fii / 100),
-            INVESTIMENTO * (1 + retorno_referencia / 100),
-        ]
-        lucros = [valor_final - INVESTIMENTO for valor_final in finais]
-        labels = [f"{fii['symbol']} (proventos reinvestidos)", f"{modo.upper()} líquido"]
-        fig = go.Figure(
-            go.Bar(
-                x=labels,
-                y=finais,
-                text=[f"{brl(v)}<br>+{pct(r)}" for v, r in zip(finais, [retorno_fii, retorno_referencia])],
-                textposition="outside",
-                marker_color=["#136f63", "#d99b2b"],
-            )
-        )
-        fig.update_layout(
-            margin=dict(l=20, r=20, t=35, b=20),
-            yaxis_title="Valor após 12 meses (R$)",
-            yaxis_tickprefix="R$ ",
-            yaxis_tickformat=",.0f",
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            showlegend=False,
-        )
-
-        margem = (preco_teto / preco - 1) * 100
-        abaixo = preco <= preco_teto
-        diagnostico = (
-            f"A cotação está {abs(margem):.1f}% "
-            f"{'abaixo' if abaixo else 'acima'} do preço-teto. "
-            f"{modo.upper()} líquido: {pct(taxa_referencia_liquida)}. "
-            f"Prêmio de risco: {pp(premio)}. "
-            f"Retorno mínimo exigido do FII: {pct(taxa_alvo_fii)}."
-        )
-        detalhe_taxa_bruta = (
-            f"{modo.upper()} {pct(indice)} + prêmio {pp(premio)} = "
-            f"{pct(taxa_referencia_bruta)} a.a."
-            if premio != 0
-            else f"Taxa {modo.upper()} anual usada na simulação"
-        )
-        return (
-            f"{fii['nome']} · {fii['symbol']} · proventos ({descricao_periodo}): {brl(proventos)} por cota",
-            brl(preco),
-            (
-                "h-100 shadow-sm border-0 metric-card metric-card-success"
-                if abaixo
-                else "h-100 shadow-sm border-0 metric-card metric-card-danger"
-            ),
-            brl(preco_teto),
-            titulo_dividend_yield,
-            pct(dy),
-            (
-                f"Renda mensal média: {pct(dy_mensal * 100)}; "
-                f"(1 + {pct(dy)} / 12)¹² - 1 = {pct(retorno_fii)} a.a. "
-                f"→ valor final {brl(finais[0])}"
-            ),
-            pct(taxa_referencia_liquida),
-            (
-                (
-                    f"SELIC mensal bruta {pct(taxa_referencia_mensal_bruta * 100)} "
-                    f"× (1 - IR {pct(ALIQUOTA_IR)}), anualizada = "
-                    if modo == "selic"
-                    else (
-                        f"IPCA + prêmio {pct(taxa_referencia_bruta)} "
-                        f"× (1 - IR {pct(ALIQUOTA_IR)}) = "
-                    )
-                )
-                + f"{pct(taxa_referencia_liquida)} líquido = "
-                f"meta do FII {pct(taxa_alvo_fii)}"
-            ),
-            titulo_equivalente,
-            pct(taxa_bruta_equivalente_fii),
-            (
-                f"DY mensal {pct(dy_mensal * 100)} → bruto mensal após "
-                f"gross-up do IR {pct(taxa_mensal_bruta_equivalente * 100)} "
-                f"→ {pct(taxa_bruta_equivalente_fii)} a.a."
-            ),
-            pct(taxa_referencia_bruta),
-            detalhe_taxa_bruta,
-            brl(lucros[0]),
-            brl(lucros[1]),
-            fig,
-            diagnostico,
-            "success" if abaixo else "warning",
-            "",
-            False,
-        )
+        return montar_resposta_sucesso(fii, proventos, modo, indice, premio, simulacao)
     except Exception as exc:
-        empty = go.Figure()
-        empty.update_layout(
-            annotations=[dict(text="Não foi possível carregar a simulação", showarrow=False)],
-            xaxis={"visible": False},
-            yaxis={"visible": False},
-        )
-        return (
-            "", "—", "h-100 shadow-sm border-0 metric-card", "—",
-            "Dividend yield", "—",
-            "—", "—", "—", "—", "—", "—", "—", "—", "—", "—",
-            empty, "", "light",
-            f"Falha ao consultar o FII: {exc}. Tente novamente em alguns instantes.",
-            True,
-        )
+        return montar_resposta_erro(exc)
 
 
 dash.register_page(__name__, name="Calculadora", path="/", title="Preço-teto de FIIs")
