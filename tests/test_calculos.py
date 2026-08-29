@@ -37,12 +37,8 @@ class CalculosFiiTest(unittest.TestCase):
         self.assertAlmostEqual(resultado["dy"], 11.0190, places=3)
         self.assertAlmostEqual(resultado["dy_mensal_decimal"] * 100, 0.9183, places=3)
         self.assertAlmostEqual(resultado["retorno_fii"], 11.5929, places=3)
-        self.assertAlmostEqual(
-            resultado["taxa_mensal_bruta_equivalente"] * 100, 1.1848, places=3
-        )
-        self.assertAlmostEqual(
-            resultado["taxa_bruta_equivalente_fii"], 15.1822, places=3
-        )
+        self.assertAlmostEqual(resultado["taxa_mensal_bruta_equivalente"] * 100, 1.1848, places=3)
+        self.assertAlmostEqual(resultado["taxa_bruta_equivalente_fii"], 15.1822, places=3)
 
     def test_equivalencia_nao_recebe_modo_indice_ou_premio(self):
         esperado = calcular_rendimentos_fii(89.30, 9.84)["taxa_bruta_equivalente_fii"]

@@ -14,13 +14,9 @@ FONTE_TAMANHO = 14
 
 PALETA_CORES = px.colors.qualitative.D3
 PALETA_CORES_DISCRETA = px.colors.qualitative.D3
-PALETA_CORES_SEQUENCIAL = px.colors.sequential.Plasma_r
 
 # Cores Notáveis
-COR_PADRAO = px.colors.qualitative.D3[0]
 COR_SUCESSO = px.colors.qualitative.D3[2]
-COR_ERRO = px.colors.qualitative.D3[3]
 COR_ALERTA = px.colors.qualitative.D3[1]
-COR_NEUTRO = px.colors.qualitative.D3[7]
-COR_SUCESSO_BRANDO = px.colors.qualitative.D3[8]
-
+COR_ERRO = px.colors.qualitative.D3[3]
+COR_NULL = px.colors.qualitative.D3[7]

@@ -158,6 +158,7 @@ layout = dbc.Container(
                                     value="HGLG11.SA",
                                     searchable=True,
                                     clearable=False,
+                                    maxHeight=400,
                                     className="mb-4",
                                 ),
                                 html.Label("Referência de retorno", className="fw-semibold"),
