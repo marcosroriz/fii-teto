@@ -20,6 +20,7 @@ from fii_tickers import FII_TICKERS
 ALIQUOTA_IR = 22.5
 PREMIO_IPCA_SETE = 7.0
 PREMIO_IPCA = 8.0
+TR_MENSAL = 0.1693
 FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
 
 
@@ -29,11 +30,21 @@ def taxa_selic_liquida(selic: float) -> float:
     return ((1 + mensal_liquida) ** 12 - 1) * 100
 
 
+def taxa_poupanca(selic: float, tr_mensal: float = TR_MENSAL) -> float:
+    if selic > 8.5:
+        rendimento_mensal = 0.5 / 100 + tr_mensal / 100
+    else:
+        rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
+        rendimento_mensal += tr_mensal / 100
+    return ((1 + rendimento_mensal) ** 12 - 1) * 100
+
+
 def criar_grafico(
     resultados,
     selic_liquida: float,
     ipca_mais_sete_liquido: float,
     ipca_mais_oito_liquido: float,
+    poupanca: float | None = None,
 ):
     ordenados = sorted(resultados, key=lambda item: item["dy"], reverse=True)
     padrao_deslocamentos = [-0.18, 0.18, -0.11, 0.11, 0, -0.24, 0.24, -0.15, 0.15, 0]
@@ -83,6 +94,10 @@ def criar_grafico(
             tema.COR_ALERTA,
         ),
     ]
+    if poupanca is not None:
+        linhas.append(
+            (poupanca, f"Poupança ({poupanca:.2f}%)", tema.COR_NULL)
+        )
     for taxa, rotulo, cor in linhas:
         fig.add_hline(
             y=taxa,
@@ -93,9 +108,7 @@ def criar_grafico(
             annotation_position="top left",
         )
     valores = [item["dy"] for item in ordenados] + [
-        selic_liquida,
-        ipca_mais_sete_liquido,
-        ipca_mais_oito_liquido,
+        taxa for taxa, _rotulo, _cor in linhas
     ]
     margem = max(1.5, (max(valores) - min(valores)) * 0.15)
     fig.update_layout(
@@ -123,7 +136,7 @@ layout = dbc.Container(
                 html.H1("Compare fundos imobiliários", className="display-6 fw-bold"),
                 html.P(
                     "Veja o dividend yield baseado nos últimos três meses, anualizado, "
-                    "contra a SELIC, o IPCA + 7% e o IPCA + 8% líquidos de IR.",
+                    "contra a poupança, a SELIC, o IPCA + 7% e o IPCA + 8% líquidos de IR.",
                     className="lead text-secondary",
                 ),
             ],
@@ -220,6 +233,7 @@ def comparar_tickers(_clicks, symbols):
 
     selic, ipca, fonte = obter_indices()
     selic_liquida = taxa_selic_liquida(selic)
+    poupanca = taxa_poupanca(selic)
     ipca_mais_sete_liquido = (ipca + PREMIO_IPCA_SETE) * (1 - ALIQUOTA_IR / 100)
     ipca_mais_oito_liquido = (ipca + PREMIO_IPCA) * (1 - ALIQUOTA_IR / 100)
     resultados = []
@@ -257,7 +271,8 @@ def comparar_tickers(_clicks, symbols):
     )
     erro = f"Sem dados para: {', '.join(falhas)}." if falhas else ""
     fonte_texto = (
-        f"Índices: {fonte}. SELIC {selic:.2f}% · IPCA 12m {ipca:.2f}% · " f"IR considerado: {ALIQUOTA_IR:.1f}%."
+        f"Índices: {fonte}. SELIC {selic:.2f}% · IPCA 12m {ipca:.2f}% · "
+        f"TR mensal {TR_MENSAL:.4f}% · IR considerado: {ALIQUOTA_IR:.1f}%."
     )
     return (
         criar_grafico(
@@ -265,6 +280,7 @@ def comparar_tickers(_clicks, symbols):
             selic_liquida,
             ipca_mais_sete_liquido,
             ipca_mais_oito_liquido,
+            poupanca,
         ),
         resumo,
         fonte_texto,

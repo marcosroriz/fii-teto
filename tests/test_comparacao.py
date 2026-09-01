@@ -31,6 +31,17 @@ class ComparacaoTest(unittest.TestCase):
 
         self.assertAlmostEqual(comparacao.taxa_selic_liquida(14), esperado)
 
+    def test_taxa_poupanca_acima_de_85_por_cento(self):
+        esperado = ((1 + (0.5 + 0.1693) / 100) ** 12 - 1) * 100
+
+        self.assertAlmostEqual(comparacao.taxa_poupanca(14), esperado)
+
+    def test_taxa_poupanca_ate_85_por_cento(self):
+        mensal_selic = (1 + (8.5 * 0.7) / 100) ** (1 / 12) - 1
+        esperado = ((1 + mensal_selic + 0.1693 / 100) ** 12 - 1) * 100
+
+        self.assertAlmostEqual(comparacao.taxa_poupanca(8.5), esperado)
+
     def test_grafico_ordena_fundos_e_aplica_cores_por_faixa(self):
         resultados = [
             resultado_fii("ERRO11", 7.5),
@@ -56,6 +67,16 @@ class ComparacaoTest(unittest.TestCase):
             [tema.COR_SUCESSO, tema.COR_ERRO, tema.COR_ALERTA],
         )
         self.assertEqual([linha.y0 for linha in figura.layout.shapes], [10.0, 7.0, 8.0])
+
+    def test_grafico_adiciona_linha_da_poupanca_com_cor_null(self):
+        figura = comparacao.criar_grafico(
+            [resultado_fii("FII11", 9.0)], 10.0, 7.0, 8.0, 8.33
+        )
+
+        self.assertEqual(len(figura.layout.shapes), 4)
+        self.assertEqual(figura.layout.shapes[-1].line.color, tema.COR_NULL)
+        self.assertEqual(figura.layout.shapes[-1].y0, 8.33)
+        self.assertIn("Poupança", figura.layout.annotations[-1].text)
 
     def test_grafico_suporta_mais_de_dez_fundos(self):
         resultados = [resultado_fii(f"FII{indice:02d}", 8 + indice / 10) for indice in range(15)]
@@ -88,8 +109,11 @@ class ComparacaoTest(unittest.TestCase):
         figura, resumo, fonte, mensagem, erro_aberto = comparacao.comparar_tickers(None, symbols)
 
         self.assertEqual(len(figura.data[0].y), 12)
+        self.assertEqual(len(figura.layout.shapes), 4)
+        self.assertEqual(figura.layout.shapes[-1].line.color, tema.COR_NULL)
         self.assertIsNotNone(resumo)
         self.assertIn("fonte teste", fonte)
+        self.assertIn("TR mensal 0.1693%", fonte)
         self.assertEqual(mensagem, "")
         self.assertFalse(erro_aberto)
 
