@@ -26,6 +26,7 @@ def pontos_historicos() -> pd.DataFrame:
             "proventos_trimestre": [2.0, 2.5],
             "dy_anualizado": [8.0, 9.5],
             "selic_liquida": [10.0, 11.0],
+            "poupanca": [8.0, 8.1],
             "ipca_mais_sete_liquido": [7.0, 7.5],
             "ipca_mais_oito_liquido": [8.0, 8.5],
         }
@@ -70,6 +71,7 @@ class HistoricoTest(unittest.TestCase):
         ipca_12m = (1.01**12 - 1) * 100
         self.assertEqual(len(resultado), 1)
         self.assertAlmostEqual(resultado.iloc[0]["selic_liquida"], historico.taxa_selic_liquida(14))
+        self.assertAlmostEqual(resultado.iloc[0]["poupanca"], historico.taxa_poupanca(14))
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_sete_liquido"], (ipca_12m + 7) * 0.775)
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_oito_liquido"], (ipca_12m + 8) * 0.775)
 
@@ -87,10 +89,16 @@ class HistoricoTest(unittest.TestCase):
 
         figura = historico.criar_grafico(pontos, "TEST11")
 
-        self.assertEqual(len(figura.data), 4)
+        self.assertEqual(len(figura.data), 5)
         self.assertEqual(
             [serie.line.color for serie in figura.data],
-            [tema.PALETA_CORES[0], tema.COR_SUCESSO, tema.COR_ALERTA, tema.COR_ERRO],
+            [
+                tema.PALETA_CORES[0],
+                tema.COR_SUCESSO,
+                tema.COR_NULL,
+                tema.COR_ALERTA,
+                tema.COR_ERRO,
+            ],
         )
         self.assertEqual(list(figura.layout.yaxis.range), [5.0, 13.0])
 
@@ -111,7 +119,7 @@ class HistoricoTest(unittest.TestCase):
 
         figura, resumo, descricao, mensagem, erro_aberto = historico.carregar_historico(None, "TEST11.SA")
 
-        self.assertEqual(len(figura.data), 4)
+        self.assertEqual(len(figura.data), 5)
         self.assertIsNotNone(resumo)
         self.assertIn("Fundo Teste", descricao)
         self.assertEqual(mensagem, "")

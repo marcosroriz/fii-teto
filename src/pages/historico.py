@@ -20,6 +20,7 @@ from fii_tickers import FII_TICKERS
 ALIQUOTA_IR = 22.5
 PREMIO_IPCA_SETE = 7.0
 PREMIO_IPCA_OITO = 8.0
+TR_MENSAL = 0.1693
 FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
 
 
@@ -27,6 +28,15 @@ def taxa_selic_liquida(selic: float) -> float:
     mensal_bruta = (1 + selic / 100) ** (1 / 12) - 1
     mensal_liquida = mensal_bruta * (1 - ALIQUOTA_IR / 100)
     return ((1 + mensal_liquida) ** 12 - 1) * 100
+
+
+def taxa_poupanca(selic: float, tr_mensal: float = TR_MENSAL) -> float:
+    if selic > 8.5:
+        rendimento_mensal = 0.5 / 100 + tr_mensal / 100
+    else:
+        rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
+        rendimento_mensal += tr_mensal / 100
+    return ((1 + rendimento_mensal) ** 12 - 1) * 100
 
 
 def adicionar_indices(pontos: pd.DataFrame, selic: pd.Series, ipca: pd.Series) -> pd.DataFrame:
@@ -45,6 +55,7 @@ def adicionar_indices(pontos: pd.DataFrame, selic: pd.Series, ipca: pd.Series) -
             {
                 **ponto,
                 "selic_liquida": taxa_selic_liquida(selic_bruta),
+                "poupanca": taxa_poupanca(selic_bruta),
                 "ipca_mais_sete_liquido": (ipca_12m + PREMIO_IPCA_SETE) * fator_liquido,
                 "ipca_mais_oito_liquido": (ipca_12m + PREMIO_IPCA_OITO) * fator_liquido,
             }
@@ -56,6 +67,7 @@ def criar_grafico(pontos: pd.DataFrame, ticker: str) -> go.Figure:
     colunas_taxas = [
         "dy_anualizado",
         "selic_liquida",
+        "poupanca",
         "ipca_mais_oito_liquido",
         "ipca_mais_sete_liquido",
     ]
@@ -81,6 +93,7 @@ def criar_grafico(pontos: pd.DataFrame, ticker: str) -> go.Figure:
     )
     referencias = [
         ("selic_liquida", "SELIC líquida", tema.COR_SUCESSO),
+        ("poupanca", "Poupança", tema.COR_NULL),
         ("ipca_mais_oito_liquido", "IPCA + 8% líquido", tema.COR_ALERTA),
         ("ipca_mais_sete_liquido", "IPCA + 7% líquido", tema.COR_ERRO),
     ]
@@ -121,8 +134,8 @@ layout = dbc.Container(
                 html.Div("HISTÓRICO DE RENDA", className="eyebrow"),
                 html.H1("Histórico do fundo imobiliário", className="display-6 fw-bold"),
                 html.P(
-                    "Compare o dividend yield trimestral anualizado do FII com a SELIC, "
-                    "o IPCA + 7% e o IPCA + 8% ao longo dos últimos três anos.",
+                    "Compare o dividend yield trimestral anualizado do FII com a poupança, "
+                    "a SELIC, o IPCA + 7% e o IPCA + 8% ao longo dos últimos três anos.",
                     className="lead text-secondary",
                 ),
             ],
@@ -153,7 +166,8 @@ layout = dbc.Container(
                                     className="w-100",
                                 ),
                                 html.Small(
-                                    "Cotações e proventos: Yahoo Finance. Índices: Banco Central do Brasil.",
+                                    "Cotações e proventos: Yahoo Finance. Índices: Banco Central do Brasil. "
+                                    f"TR mensal considerada: {TR_MENSAL:.4f}%.",
                                     id="historico-fonte",
                                     className="d-block text-muted mt-3",
                                 ),
