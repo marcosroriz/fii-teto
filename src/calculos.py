@@ -24,7 +24,7 @@ def calcular_proventos(history) -> tuple[float, float]:
 
 
 def calcular_historico_trimestral(history: pd.DataFrame, data_inicio, data_fim) -> pd.DataFrame:
-    """Calcula o DY anualizado de janelas de três meses em datas trimestrais."""
+    """Calcula o DY anualizado com os três proventos mais recentes."""
     inicio = pd.Timestamp(data_inicio).normalize()
     fim = pd.Timestamp(data_fim).normalize()
     if inicio > fim:
@@ -49,15 +49,19 @@ def calcular_historico_trimestral(history: pd.DataFrame, data_inicio, data_fim) 
         preco = float(cotacoes.iloc[-1])
         if preco <= 0:
             continue
-        inicio_janela = data - pd.DateOffset(months=3)
-        proventos_trimestre = float(
-            dividendos.loc[(dividendos.index > inicio_janela) & (dividendos.index <= data)].sum()
-        )
+        proventos_recentes = dividendos.loc[
+            (dividendos.index <= data) & (dividendos > 0)
+        ].tail(3)
+        quantidade_proventos = len(proventos_recentes)
+        if quantidade_proventos < 3:
+            continue
+        proventos_trimestre = float(proventos_recentes.sum())
         pontos.append(
             {
                 "data": data,
                 "preco": preco,
                 "proventos_trimestre": proventos_trimestre,
+                "quantidade_proventos": quantidade_proventos,
                 "dy_anualizado": proventos_trimestre * 4 / preco * 100,
             }
         )

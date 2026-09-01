@@ -44,6 +44,26 @@ class HistoricoTest(unittest.TestCase):
             "2023-03-31", "2023-06-30", "2023-09-30", "2023-12-31", "2024-01-31"
         ])
         self.assertTrue((pontos["dy_anualizado"] == 12.0).all())
+        self.assertTrue((pontos["quantidade_proventos"] == 3).all())
+
+    def test_calculo_usa_tres_proventos_mesmo_quando_janela_tem_apenas_dois(self):
+        indice = pd.to_datetime([
+            "2026-05-29", "2026-06-30", "2026-07-31", "2026-09-01"
+        ])
+        history = pd.DataFrame(
+            {
+                "Close": [150.0, 151.0, 147.42, 147.0],
+                "Dividends": [1.10, 1.10, 1.17, 0.0],
+            },
+            index=indice,
+        )
+
+        pontos = calcular_historico_trimestral(history, "2026-06-01", "2026-09-01")
+        ultimo = pontos.iloc[-1]
+
+        self.assertAlmostEqual(ultimo["proventos_trimestre"], 3.37)
+        self.assertEqual(ultimo["quantidade_proventos"], 3)
+        self.assertAlmostEqual(ultimo["dy_anualizado"], 3.37 * 4 / 147 * 100)
 
     def test_calculo_trimestral_rejeita_periodo_invertido(self):
         history = pd.DataFrame(
