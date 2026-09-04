@@ -31,11 +31,8 @@ def taxa_selic_liquida(selic: float) -> float:
 
 
 def taxa_poupanca(selic: float, tr_mensal: float = TR_MENSAL) -> float:
-    if selic > 8.5:
-        rendimento_mensal = 0.5 / 100 + tr_mensal / 100
-    else:
-        rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
-        rendimento_mensal += tr_mensal / 100
+    rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
+    rendimento_mensal += tr_mensal / 100
     return ((1 + rendimento_mensal) ** 12 - 1) * 100
 
 

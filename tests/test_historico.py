@@ -95,6 +95,36 @@ class HistoricoTest(unittest.TestCase):
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_sete_liquido"], (ipca_12m + 7) * 0.775)
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_oito_liquido"], (ipca_12m + 8) * 0.775)
 
+    def test_poupanca_usa_a_selic_correspondente_a_cada_tick(self):
+        pontos = pd.DataFrame(
+            {
+                "data": pd.to_datetime(["2025-03-31", "2025-06-30"]),
+                "preco": [100.0, 100.0],
+                "proventos_trimestre": [2.0, 2.0],
+                "dy_anualizado": [8.0, 8.0],
+            }
+        )
+        selic = pd.Series(
+            [10.0, 14.0],
+            index=pd.to_datetime(["2025-03-30", "2025-06-29"]),
+        )
+        ipca = pd.Series(
+            0.4,
+            index=pd.date_range("2024-01-01", periods=18, freq="MS"),
+        )
+
+        resultado = historico.adicionar_indices(pontos, selic, ipca)
+
+        self.assertAlmostEqual(
+            resultado.iloc[0]["poupanca"], historico.taxa_poupanca(10.0)
+        )
+        self.assertAlmostEqual(
+            resultado.iloc[1]["poupanca"], historico.taxa_poupanca(14.0)
+        )
+        self.assertNotEqual(
+            resultado.iloc[0]["poupanca"], resultado.iloc[1]["poupanca"]
+        )
+
     def test_indice_sem_doze_meses_de_ipca_e_descartado(self):
         pontos = pontos_historicos().iloc[[0]]
         selic = pd.Series([14.0], index=pd.to_datetime(["2025-09-30"]))
