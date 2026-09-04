@@ -20,7 +20,6 @@ from fii_tickers import FII_TICKERS
 ALIQUOTA_IR = 22.5
 PREMIO_IPCA_SETE = 7.0
 PREMIO_IPCA_OITO = 8.0
-TR_MENSAL = 0.1693
 FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
 
 
@@ -30,10 +29,9 @@ def taxa_selic_liquida(selic: float) -> float:
     return ((1 + mensal_liquida) ** 12 - 1) * 100
 
 
-def taxa_poupanca(selic: float, tr_mensal: float = TR_MENSAL) -> float:
-    rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
-    rendimento_mensal += tr_mensal / 100
-    return ((1 + rendimento_mensal) ** 12 - 1) * 100
+def taxa_poupanca(selic: float) -> float:
+    """Retorna o benchmark da poupança como 70% da Selic anual do tick."""
+    return selic * 0.7
 
 
 def adicionar_indices(pontos: pd.DataFrame, selic: pd.Series, ipca: pd.Series) -> pd.DataFrame:
@@ -163,8 +161,7 @@ layout = dbc.Container(
                                     className="w-100",
                                 ),
                                 html.Small(
-                                    "Cotações e proventos: Yahoo Finance. Índices: Banco Central do Brasil. "
-                                    f"TR mensal considerada: {TR_MENSAL:.4f}%.",
+                                    "Cotações e proventos: Yahoo Finance. Índices: Banco Central do Brasil.",
                                     id="historico-fonte",
                                     className="d-block text-muted mt-3",
                                 ),

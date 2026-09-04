@@ -116,10 +116,10 @@ class HistoricoTest(unittest.TestCase):
         resultado = historico.adicionar_indices(pontos, selic, ipca)
 
         self.assertAlmostEqual(
-            resultado.iloc[0]["poupanca"], historico.taxa_poupanca(10.0)
+            resultado.iloc[0]["poupanca"], 7.0
         )
         self.assertAlmostEqual(
-            resultado.iloc[1]["poupanca"], historico.taxa_poupanca(14.0)
+            resultado.iloc[1]["poupanca"], 9.8
         )
         self.assertNotEqual(
             resultado.iloc[0]["poupanca"], resultado.iloc[1]["poupanca"]
