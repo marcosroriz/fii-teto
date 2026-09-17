@@ -31,17 +31,6 @@ class ComparacaoTest(unittest.TestCase):
 
         self.assertAlmostEqual(comparacao.taxa_selic_liquida(14), esperado)
 
-    def test_taxa_poupanca_acima_de_85_por_cento(self):
-        esperado = ((1 + (0.5 + 0.1693) / 100) ** 12 - 1) * 100
-
-        self.assertAlmostEqual(comparacao.taxa_poupanca(14), esperado)
-
-    def test_taxa_poupanca_ate_85_por_cento(self):
-        mensal_selic = (1 + (8.5 * 0.7) / 100) ** (1 / 12) - 1
-        esperado = ((1 + mensal_selic + 0.1693 / 100) ** 12 - 1) * 100
-
-        self.assertAlmostEqual(comparacao.taxa_poupanca(8.5), esperado)
-
     def test_grafico_ordena_fundos_e_aplica_cores_por_faixa(self):
         resultados = [
             resultado_fii("ERRO11", 7.5),
@@ -58,25 +47,32 @@ class ComparacaoTest(unittest.TestCase):
             [tema.COR_SUCESSO, tema.COR_ALERTA, tema.COR_ERRO, tema.COR_NULL],
         )
 
-    def test_grafico_adiciona_as_tres_linhas_com_cores_do_tema(self):
+    def test_grafico_adiciona_referencias_e_yield_da_carteira(self):
         figura = comparacao.criar_grafico([resultado_fii("FII11", 9.0)], 10.0, 7.0, 8.0)
 
-        self.assertEqual(len(figura.layout.shapes), 3)
+        self.assertEqual(len(figura.layout.shapes), 4)
         self.assertEqual(
             [linha.line.color for linha in figura.layout.shapes],
-            [tema.COR_SUCESSO, tema.COR_ERRO, tema.COR_ALERTA],
+            [tema.COR_SUCESSO, tema.COR_ERRO, tema.COR_ALERTA, tema.PALETA_CORES[0]],
         )
-        self.assertEqual([linha.y0 for linha in figura.layout.shapes], [10.0, 7.0, 8.0])
+        self.assertEqual([linha.y0 for linha in figura.layout.shapes], [10.0, 7.0, 8.0, 9.0])
+        self.assertIn("DY médio da carteira (9.00%)", figura.layout.annotations[-1].text)
 
-    def test_grafico_adiciona_linha_da_poupanca_com_cor_null(self):
-        figura = comparacao.criar_grafico(
-            [resultado_fii("FII11", 9.0)], 10.0, 7.0, 8.0, 8.33
+    @patch.object(comparacao, "obter_indices", return_value=(14.0, 5.0, "fonte teste"))
+    @patch.object(comparacao, "obter_fii")
+    def test_yield_da_carteira_usa_o_mesmo_valor_em_cada_fii(self, obter_fii, _obter_indices):
+        dados = {
+            "FII01.SA": {"symbol": "FII01", "nome": "Fundo 1", "preco": 100.0, "proventos_3m_anualizados": 8.0},
+            "FII02.SA": {"symbol": "FII02", "nome": "Fundo 2", "preco": 200.0, "proventos_3m_anualizados": 24.0},
+        }
+        obter_fii.side_effect = dados.__getitem__
+
+        figura, _resumo, _fonte, _mensagem, _erro_aberto = comparacao.comparar_tickers(
+            None, list(dados)
         )
 
-        self.assertEqual(len(figura.layout.shapes), 4)
-        self.assertEqual(figura.layout.shapes[-1].line.color, tema.COR_NULL)
-        self.assertEqual(figura.layout.shapes[-1].y0, 8.33)
-        self.assertIn("Poupança", figura.layout.annotations[-1].text)
+        self.assertEqual(figura.layout.shapes[-1].y0, 10.0)
+        self.assertEqual(figura.layout.shapes[-1].line.width, 3)
 
     def test_grafico_suporta_mais_de_dez_fundos(self):
         resultados = [resultado_fii(f"FII{indice:02d}", 8 + indice / 10) for indice in range(15)]
@@ -110,10 +106,9 @@ class ComparacaoTest(unittest.TestCase):
 
         self.assertEqual(len(figura.data[0].y), 12)
         self.assertEqual(len(figura.layout.shapes), 4)
-        self.assertEqual(figura.layout.shapes[-1].line.color, tema.COR_NULL)
         self.assertIsNotNone(resumo)
         self.assertIn("fonte teste", fonte)
-        self.assertIn("TR mensal 0.1693%", fonte)
+        self.assertIn("IR considerado: 22.5%", fonte)
         self.assertEqual(mensagem, "")
         self.assertFalse(erro_aberto)
 

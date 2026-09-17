@@ -20,7 +20,6 @@ from fii_tickers import FII_TICKERS
 ALIQUOTA_IR = 22.5
 PREMIO_IPCA_SETE = 7.0
 PREMIO_IPCA = 8.0
-TR_MENSAL = 0.1693
 FII_OPTIONS = [{"label": ticker, "value": f"{ticker}.SA"} for ticker in FII_TICKERS]
 
 
@@ -30,21 +29,11 @@ def taxa_selic_liquida(selic: float) -> float:
     return ((1 + mensal_liquida) ** 12 - 1) * 100
 
 
-def taxa_poupanca(selic: float, tr_mensal: float = TR_MENSAL) -> float:
-    if selic > 8.5:
-        rendimento_mensal = 0.5 / 100 + tr_mensal / 100
-    else:
-        rendimento_mensal = (1 + (selic * 0.7) / 100) ** (1 / 12) - 1
-        rendimento_mensal += tr_mensal / 100
-    return ((1 + rendimento_mensal) ** 12 - 1) * 100
-
-
 def criar_grafico(
     resultados,
     selic_liquida: float,
     ipca_mais_sete_liquido: float,
     ipca_mais_oito_liquido: float,
-    poupanca: float | None = None,
 ):
     ordenados = sorted(resultados, key=lambda item: item["dy"], reverse=True)
     padrao_deslocamentos = [-0.18, 0.18, -0.11, 0.11, 0, -0.24, 0.24, -0.15, 0.15, 0]
@@ -94,10 +83,6 @@ def criar_grafico(
             tema.COR_ALERTA,
         ),
     ]
-    if poupanca is not None:
-        linhas.append(
-            (poupanca, f"Poupança ({poupanca:.2f}%)", tema.COR_NULL)
-        )
     for taxa, rotulo, cor in linhas:
         fig.add_hline(
             y=taxa,
@@ -107,6 +92,14 @@ def criar_grafico(
             annotation_text=rotulo,
             annotation_position="top left",
         )
+    dy_carteira = sum(item["dy"] for item in ordenados) / len(ordenados)
+    fig.add_hline(
+        y=dy_carteira,
+        line_color=tema.PALETA_CORES[0],
+        line_width=3,
+        annotation_text=f"DY médio da carteira ({dy_carteira:.2f}%)",
+        annotation_position="bottom right",
+    )
     valores = [item["dy"] for item in ordenados] + [
         taxa for taxa, _rotulo, _cor in linhas
     ]
@@ -136,7 +129,7 @@ layout = dbc.Container(
                 html.H1("Compare fundos imobiliários", className="display-6 fw-bold"),
                 html.P(
                     "Veja o dividend yield baseado nos últimos três meses, anualizado, "
-                    "contra a poupança, a SELIC, o IPCA + 7% e o IPCA + 8% líquidos de IR.",
+                    "contra a SELIC, o IPCA + 7% e o IPCA + 8% líquidos de IR.",
                     className="lead text-secondary",
                 ),
             ],
@@ -153,16 +146,16 @@ layout = dbc.Container(
                                     id="comparacao-tickers",
                                     options=FII_OPTIONS,
                                     value=[
-                                        "HGLG11.SA",
                                         "BTLG11.SA",
-                                        "XPLG11.SA",
+                                        "BTCI11.SA",
+                                        "HGLG11.SA",
+                                        "HGCR11.SA",
                                         "PMLL11.SA",
                                         "XPML11.SA",
-                                        "KNCR11.SA",
                                         "XPCI11.SA",
-                                        "BTCI11.SA",
-                                        "FATN11.SA",
-                                        "HGCR11.SA",
+                                        "KNHF11.SA",
+                                        "KNCR11.SA",
+                                        "KNRI11.SA",
                                     ],
                                     multi=True,
                                     searchable=True,
@@ -170,7 +163,9 @@ layout = dbc.Container(
                                     placeholder="Selecione os tickers",
                                 ),
                                 html.Small(
-                                    "Selecione um ou mais FIIs. Os dados são consultados no Yahoo Finance.",
+                                    "Selecione um ou mais FIIs. A carteira considera o mesmo valor "
+                                    "investido em cada FII com dados disponíveis. "
+                                    "Os dados são consultados no Yahoo Finance.",
                                     className="d-block text-muted mt-2",
                                 ),
                                 dbc.Button(
@@ -233,7 +228,6 @@ def comparar_tickers(_clicks, symbols):
 
     selic, ipca, fonte = obter_indices()
     selic_liquida = taxa_selic_liquida(selic)
-    poupanca = taxa_poupanca(selic)
     ipca_mais_sete_liquido = (ipca + PREMIO_IPCA_SETE) * (1 - ALIQUOTA_IR / 100)
     ipca_mais_oito_liquido = (ipca + PREMIO_IPCA) * (1 - ALIQUOTA_IR / 100)
     resultados = []
@@ -272,7 +266,7 @@ def comparar_tickers(_clicks, symbols):
     erro = f"Sem dados para: {', '.join(falhas)}." if falhas else ""
     fonte_texto = (
         f"Índices: {fonte}. SELIC {selic:.2f}% · IPCA 12m {ipca:.2f}% · "
-        f"TR mensal {TR_MENSAL:.4f}% · IR considerado: {ALIQUOTA_IR:.1f}%."
+        f"IR considerado: {ALIQUOTA_IR:.1f}%."
     )
     return (
         criar_grafico(
@@ -280,7 +274,6 @@ def comparar_tickers(_clicks, symbols):
             selic_liquida,
             ipca_mais_sete_liquido,
             ipca_mais_oito_liquido,
-            poupanca,
         ),
         resumo,
         fonte_texto,

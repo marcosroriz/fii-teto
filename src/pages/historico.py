@@ -29,11 +29,6 @@ def taxa_selic_liquida(selic: float) -> float:
     return ((1 + mensal_liquida) ** 12 - 1) * 100
 
 
-def taxa_poupanca(selic: float) -> float:
-    """Retorna o benchmark da poupança como 70% da Selic anual do tick."""
-    return selic * 0.7
-
-
 def adicionar_indices(pontos: pd.DataFrame, selic: pd.Series, ipca: pd.Series) -> pd.DataFrame:
     """Alinha os índices conhecidos em cada data trimestral do FII."""
     fator_liquido = 1 - ALIQUOTA_IR / 100
@@ -50,7 +45,6 @@ def adicionar_indices(pontos: pd.DataFrame, selic: pd.Series, ipca: pd.Series) -
             {
                 **ponto,
                 "selic_liquida": taxa_selic_liquida(selic_bruta),
-                "poupanca": taxa_poupanca(selic_bruta),
                 "ipca_mais_sete_liquido": (ipca_12m + PREMIO_IPCA_SETE) * fator_liquido,
                 "ipca_mais_oito_liquido": (ipca_12m + PREMIO_IPCA_OITO) * fator_liquido,
             }
@@ -62,7 +56,6 @@ def criar_grafico(pontos: pd.DataFrame, ticker: str) -> go.Figure:
     colunas_taxas = [
         "dy_anualizado",
         "selic_liquida",
-        "poupanca",
         "ipca_mais_oito_liquido",
         "ipca_mais_sete_liquido",
     ]
@@ -88,7 +81,6 @@ def criar_grafico(pontos: pd.DataFrame, ticker: str) -> go.Figure:
     )
     referencias = [
         ("selic_liquida", "SELIC líquida", tema.COR_SUCESSO),
-        ("poupanca", "Poupança", tema.COR_NULL),
         ("ipca_mais_oito_liquido", "IPCA + 8% líquido", tema.COR_ALERTA),
         ("ipca_mais_sete_liquido", "IPCA + 7% líquido", tema.COR_ERRO),
     ]
@@ -129,7 +121,7 @@ layout = dbc.Container(
                 html.Div("HISTÓRICO DE RENDA", className="eyebrow"),
                 html.H1("Histórico do fundo imobiliário", className="display-6 fw-bold"),
                 html.P(
-                    "Compare o dividend yield dos três últimos proventos, anualizado, com a poupança, "
+                    "Compare o dividend yield dos três últimos proventos, anualizado, com "
                     "a SELIC, o IPCA + 7% e o IPCA + 8% ao longo dos últimos três anos.",
                     className="lead text-secondary",
                 ),

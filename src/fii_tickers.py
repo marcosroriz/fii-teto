@@ -439,6 +439,7 @@ FII_TICKERS = [
     "PATL11",
     "PBLV11",
     "PCAS11",
+    "PCIP11",
     "PEMA11",
     "PLAG11",
     "PLCA11",

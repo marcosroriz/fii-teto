@@ -26,7 +26,6 @@ def pontos_historicos() -> pd.DataFrame:
             "proventos_trimestre": [2.0, 2.5],
             "dy_anualizado": [8.0, 9.5],
             "selic_liquida": [10.0, 11.0],
-            "poupanca": [8.0, 8.1],
             "ipca_mais_sete_liquido": [7.0, 7.5],
             "ipca_mais_oito_liquido": [8.0, 8.5],
         }
@@ -91,11 +90,10 @@ class HistoricoTest(unittest.TestCase):
         ipca_12m = (1.01**12 - 1) * 100
         self.assertEqual(len(resultado), 1)
         self.assertAlmostEqual(resultado.iloc[0]["selic_liquida"], historico.taxa_selic_liquida(14))
-        self.assertAlmostEqual(resultado.iloc[0]["poupanca"], historico.taxa_poupanca(14))
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_sete_liquido"], (ipca_12m + 7) * 0.775)
         self.assertAlmostEqual(resultado.iloc[0]["ipca_mais_oito_liquido"], (ipca_12m + 8) * 0.775)
 
-    def test_poupanca_usa_a_selic_correspondente_a_cada_tick(self):
+    def test_selic_usa_a_taxa_correspondente_a_cada_tick(self):
         pontos = pd.DataFrame(
             {
                 "data": pd.to_datetime(["2025-03-31", "2025-06-30"]),
@@ -115,15 +113,8 @@ class HistoricoTest(unittest.TestCase):
 
         resultado = historico.adicionar_indices(pontos, selic, ipca)
 
-        self.assertAlmostEqual(
-            resultado.iloc[0]["poupanca"], 7.0
-        )
-        self.assertAlmostEqual(
-            resultado.iloc[1]["poupanca"], 9.8
-        )
-        self.assertNotEqual(
-            resultado.iloc[0]["poupanca"], resultado.iloc[1]["poupanca"]
-        )
+        self.assertAlmostEqual(resultado.iloc[0]["selic_liquida"], historico.taxa_selic_liquida(10))
+        self.assertAlmostEqual(resultado.iloc[1]["selic_liquida"], historico.taxa_selic_liquida(14))
 
     def test_indice_sem_doze_meses_de_ipca_e_descartado(self):
         pontos = pontos_historicos().iloc[[0]]
@@ -139,13 +130,12 @@ class HistoricoTest(unittest.TestCase):
 
         figura = historico.criar_grafico(pontos, "TEST11")
 
-        self.assertEqual(len(figura.data), 5)
+        self.assertEqual(len(figura.data), 4)
         self.assertEqual(
             [serie.line.color for serie in figura.data],
             [
                 tema.PALETA_CORES[0],
                 tema.COR_SUCESSO,
-                tema.COR_NULL,
                 tema.COR_ALERTA,
                 tema.COR_ERRO,
             ],
@@ -169,7 +159,7 @@ class HistoricoTest(unittest.TestCase):
 
         figura, resumo, descricao, mensagem, erro_aberto = historico.carregar_historico(None, "TEST11.SA")
 
-        self.assertEqual(len(figura.data), 5)
+        self.assertEqual(len(figura.data), 4)
         self.assertIsNotNone(resumo)
         self.assertIn("Fundo Teste", descricao)
         self.assertEqual(mensagem, "")
