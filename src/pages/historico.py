@@ -75,7 +75,7 @@ def criar_grafico(pontos: pd.DataFrame, ticker: str) -> go.Figure:
                 "<b>%{x|%d/%m/%Y}</b><br>"
                 "DY anualizado: %{y:.2f}%<br>"
                 "Cotação: R$ %{customdata[0]:.2f}<br>"
-                "Três últimos proventos: R$ %{customdata[1]:.2f}<extra></extra>"
+                "Proventos dos três últimos meses: R$ %{customdata[1]:.2f}<extra></extra>"
             ),
         )
     )
@@ -121,7 +121,7 @@ layout = dbc.Container(
                 html.Div("HISTÓRICO DE RENDA", className="eyebrow"),
                 html.H1("Histórico do fundo imobiliário", className="display-6 fw-bold"),
                 html.P(
-                    "Compare o dividend yield dos três últimos proventos, anualizado, com "
+                    "Compare o dividend yield dos três últimos meses de proventos, anualizado, com "
                     "a SELIC, o IPCA + 7% e o IPCA + 8% ao longo dos últimos três anos.",
                     className="lead text-secondary",
                 ),

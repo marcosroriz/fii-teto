@@ -36,6 +36,22 @@ class CalculosFiiTest(unittest.TestCase):
         self.assertEqual(anual, 15.0)
         self.assertEqual(tres_meses_ajustado, 48.0)
 
+    def test_proventos_nao_incluem_quarto_mes_quando_pagamento_cai_no_mesmo_dia(self):
+        indice = pd.to_datetime(["2025-05-15", "2025-06-15", "2025-07-15", "2025-08-15"])
+        history = pd.DataFrame({"Dividends": [1.0, 1.0, 1.0, 1.0]}, index=indice)
+
+        _anual, tres_meses_ajustado = calcular_proventos(history)
+
+        self.assertEqual(tres_meses_ajustado, 12.0)
+
+    def test_proventos_usam_tres_meses_mesmo_com_data_de_pagamento_variavel(self):
+        indice = pd.to_datetime(["2026-05-29", "2026-06-30", "2026-07-31", "2026-09-01"])
+        history = pd.DataFrame({"Dividends": [1.10, 1.10, 1.17, 0.0]}, index=indice)
+
+        _anual, tres_meses_ajustado = calcular_proventos(history)
+
+        self.assertAlmostEqual(tres_meses_ajustado, 3.37 * 4)
+
     def test_exemplo_obrigatorio(self):
         resultado = calcular_rendimentos_fii(89.30, 9.84)
 

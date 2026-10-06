@@ -10,21 +10,29 @@ import pandas as pd
 ALIQUOTA_IR = 22.5
 
 
+def proventos_ultimos_tres_meses(dividendos: pd.Series) -> pd.Series:
+    """Retorna os proventos pagos nos três últimos meses com pagamento."""
+    pagos = dividendos.loc[dividendos.fillna(0) > 0]
+    if pagos.empty:
+        return pagos
+    meses = pagos.index.year * 12 + pagos.index.month
+    return pagos.loc[meses.isin(meses.unique()[-3:])]
+
+
 def calcular_proventos(history) -> tuple[float, float]:
     """Retorna proventos de 12 meses e dos últimos 3 meses anualizados."""
     dividendos = history.get("Dividends")
     if dividendos is None or dividendos.empty:
         return 0.0, 0.0
 
-    dividendos = dividendos.fillna(0)
+    dividendos = dividendos.sort_index().fillna(0)
     proventos_12m = float(dividendos.sum())
-    inicio_3m = dividendos.index.max() - pd.DateOffset(months=3)
-    proventos_3m_anualizados = float(dividendos.loc[dividendos.index >= inicio_3m].sum()) * 4
+    proventos_3m_anualizados = float(proventos_ultimos_tres_meses(dividendos).sum()) * 4
     return proventos_12m, proventos_3m_anualizados
 
 
 def calcular_historico_trimestral(history: pd.DataFrame, data_inicio, data_fim) -> pd.DataFrame:
-    """Calcula o DY anualizado com os três proventos mais recentes."""
+    """Calcula o DY anualizado com os proventos dos três últimos meses."""
     inicio = pd.Timestamp(data_inicio).normalize()
     fim = pd.Timestamp(data_fim).normalize()
     if inicio > fim:
@@ -49,11 +57,9 @@ def calcular_historico_trimestral(history: pd.DataFrame, data_inicio, data_fim) 
         preco = float(cotacoes.iloc[-1])
         if preco <= 0:
             continue
-        proventos_recentes = dividendos.loc[
-            (dividendos.index <= data) & (dividendos > 0)
-        ].tail(3)
+        proventos_recentes = proventos_ultimos_tres_meses(dividendos.loc[dividendos.index <= data])
         quantidade_proventos = len(proventos_recentes)
-        if quantidade_proventos < 3:
+        if (proventos_recentes.index.year * 12 + proventos_recentes.index.month).nunique() < 3:
             continue
         proventos_trimestre = float(proventos_recentes.sum())
         pontos.append(

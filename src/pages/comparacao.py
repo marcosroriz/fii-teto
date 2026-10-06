@@ -153,7 +153,7 @@ layout = dbc.Container(
                                         "PMLL11.SA",
                                         "XPML11.SA",
                                         "XPCI11.SA",
-                                        "KNHF11.SA",
+                                        "XPLG11.SA",
                                         "KNCR11.SA",
                                         "KNRI11.SA",
                                     ],
